@@ -2,6 +2,8 @@ import asyncio
 import logging
 import time
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
 import humanreadable as hr
 from telethon.sync import TelegramClient, events
 from telethon.tl.custom.message import Message
@@ -86,6 +88,8 @@ async def handle_message(m: Message):
     asyncio.create_task(sender.send_video())
 
 
+print("Bot is starting...")
 bot.start(bot_token=BOT_TOKEN)
+print("Bot started successfully! Listening for messages...")
 
 bot.run_until_disconnected()
