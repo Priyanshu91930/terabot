@@ -202,23 +202,26 @@ __Powered by @TeraboxDownloaderINDIA__
                         attributes, mime_type = utils.get_attributes(part)
                         part_caption = f"{self.caption}\n\n📂 **Part {i+1} of {len(parts)}**"
                         
-                        file = await self.client.send_file(
-                            self.message.chat.id,
-                            file=res,
-                            caption=part_caption,
-                            background=True,
-                            reply_to=self.message.id,
-                            allow_cache=True,
-                            force_document=True,
-                            parse_mode="markdown",
-                            thumb=self.thumbnail,
-                            mime_type=mime_type,
-                            buttons=[
-                                [
-                                    Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
-                                    Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
+                        file = await asyncio.wait_for(
+                            self.client.send_file(
+                                self.message.chat.id,
+                                file=res,
+                                caption=part_caption,
+                                background=True,
+                                reply_to=self.message.id,
+                                allow_cache=True,
+                                force_document=True,
+                                parse_mode="markdown",
+                                thumb=self.thumbnail,
+                                mime_type=mime_type,
+                                buttons=[
+                                    [
+                                        Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
+                                        Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
+                                    ],
                                 ],
-                            ],
+                            ),
+                            timeout=300,
                         )
                         sent_files.append(file)
                     try:
@@ -253,30 +256,33 @@ __Powered by @TeraboxDownloaderINDIA__
                     attributes, mime_type = utils.get_attributes(
                         self.download,
                     )
-                    file = await self.client.send_file(
-                        self.message.chat.id,
-                        file=res,
-                        caption=self.caption,
-                        background=True,
-                        reply_to=self.message.id,
-                        allow_cache=True,
-                        force_document=False,
-                        parse_mode="markdown",
-                        supports_streaming=True,
-                        thumb=self.thumbnail,
-                        mime_type=mime_type,
-                        buttons=[
-                            [
-                                Button.url(
-                                    "Direct Link",
-                                    url=f"https://{BOT_USERNAME}.t.me?start={self.uuid}",
-                                ),
+                    file = await asyncio.wait_for(
+                        self.client.send_file(
+                            self.message.chat.id,
+                            file=res,
+                            caption=self.caption,
+                            background=True,
+                            reply_to=self.message.id,
+                            allow_cache=True,
+                            force_document=False,
+                            parse_mode="markdown",
+                            supports_streaming=True,
+                            thumb=self.thumbnail,
+                            mime_type=mime_type,
+                            buttons=[
+                                [
+                                    Button.url(
+                                        "Direct Link",
+                                        url=f"https://{BOT_USERNAME}.t.me?start={self.uuid}",
+                                    ),
+                                ],
+                                [
+                                    Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
+                                    Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
+                                ],
                             ],
-                            [
-                                Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
-                                Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
-                            ],
-                        ],
+                        ),
+                        timeout=300,
                     )
                 try:
                     os.unlink(self.download)
