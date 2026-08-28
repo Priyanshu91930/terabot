@@ -357,15 +357,6 @@ async def handle_raw_join_request(event):
 
 # ------------------ LINK HANDLER ------------------
 
-@bot.on(
-    events.NewMessage(
-        incoming=True,
-        outgoing=False,
-        func=lambda message: message.text
-        and get_urls_from_string(message.text)
-        and message.is_private,
-    )
-)
 # Global Task Queue Variables
 download_queue = []
 is_processing = False
