@@ -97,7 +97,20 @@ class UploadSender:
             f"Sending file part {self.request.file_part}/{self.part_count}"
             f" with {len(data)} bytes"
         )
-        await self.client._call(self.sender, self.request)
+        for attempt in range(5):
+            try:
+                await self.client._call(self.sender, self.request)
+                self.request.file_part += self.stride
+                return
+            except Exception as e:
+                err = str(e).lower()
+                if 'flood' in err or 'wait' in err:
+                    wait_time = 5 * (attempt + 1)
+                    log.warning(f"Flood wait on part {self.request.file_part}, sleeping {wait_time}s (attempt {attempt+1})")
+                    await asyncio.sleep(wait_time)
+                else:
+                    raise
+        log.error(f"Failed to send part {self.request.file_part} after 5 retries")
         self.request.file_part += self.stride
 
     async def disconnect(self) -> None:
@@ -132,11 +145,11 @@ class ParallelTransferrer:
 
     @staticmethod
     def _get_connection_count(
-        file_size: int, max_count: int = 20, full_size: int = 100 * 1024 * 1024
+        file_size: int, max_count: int = 4, full_size: int = 100 * 1024 * 1024
     ) -> int:
         if file_size > full_size:
             return max_count
-        return math.ceil((file_size / full_size) * max_count)
+        return max(1, math.ceil((file_size / full_size) * max_count))
 
     async def _init_upload(
         self, connections: int, file_id: int, part_count: int, big: bool
@@ -205,6 +218,7 @@ class ParallelTransferrer:
     async def upload(self, part: bytes) -> None:
         await self.senders[self.upload_ticker].next(part)
         self.upload_ticker = (self.upload_ticker + 1) % len(self.senders)
+        await asyncio.sleep(0.1)  # Small delay to prevent flood
 
     async def finish_upload(self) -> None:
         await self._cleanup()

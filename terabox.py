@@ -150,6 +150,7 @@ def get_data(url: str):
             "sizebytes": size_bytes,
             "headers": res_data.get("downloadHeaders"),
         }
+        print(f"[DEBUG] Download URL: {data['direct_link'][:120] if data['direct_link'] else 'NONE'}...")
         return data
     except Exception as e:
         print(f"Error calling Vercel API: {e}")
