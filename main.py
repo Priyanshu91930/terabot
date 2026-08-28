@@ -26,10 +26,116 @@ bot = TelegramClient("main", API_ID, API_HASH)
 log = logging.getLogger(__name__)
 
 
+# ------------------ DYNAMIC SETTINGS RESOLVER ------------------
+
+def is_token_system_enabled() -> bool:
+    val = db.get("cfg_use_token_system")
+    if val is not None:
+        return val.decode("utf-8") == "True"
+    return USE_TOKEN_SYSTEM
+
+def is_force_sub_enabled() -> bool:
+    val = db.get("cfg_use_force_sub")
+    if val is not None:
+        return val.decode("utf-8") == "True"
+    return True # Enabled by default
+
+
 # General debug logger for incoming private messages
 @bot.on(events.NewMessage(incoming=True, outgoing=False, func=lambda x: x.is_private))
 async def debug_incoming_messages(event):
     log.info(f"Received private message from {event.sender_id}: '{event.text}'")
+
+
+# ------------------ SETTINGS COMMAND (ADMINS ONLY) ------------------
+
+@bot.on(
+    events.NewMessage(
+        pattern="/settings$",
+        incoming=True,
+        outgoing=False,
+        from_users=ADMINS,
+    )
+)
+async def settings_menu(m: Message):
+    token_status = "✅ Enabled" if is_token_system_enabled() else "❌ Disabled"
+    forcesub_status = "✅ Enabled" if is_force_sub_enabled() else "❌ Disabled"
+    
+    text = f"""
+⚙️ **Bot Admin Settings Panel**
+
+Control bot features dynamically. Changes take effect instantly without restarting!
+
+• **Token System (/gen & Ads)**: {token_status}
+• **Force Join Subscription**: {forcesub_status}
+• **Channel Target**: {FORCE_LINK}
+"""
+    await m.reply(
+        text,
+        parse_mode="markdown",
+        buttons=[
+            [
+                Button.inline("Toggle Token System", data="toggle_token"),
+            ],
+            [
+                Button.inline("Toggle Force Subscription", data="toggle_forcesub"),
+            ],
+            [
+                Button.inline("Close Panel 🔒", data="close_settings"),
+            ]
+        ]
+    )
+
+
+@bot.on(events.CallbackQuery(pattern=r"(toggle_token|toggle_forcesub|close_settings)"))
+async def settings_callback(event):
+    if event.sender_id not in ADMINS:
+        return await event.answer("You are not authorized to use this panel!", alert=True)
+        
+    data = event.data.decode("utf-8")
+    
+    if data == "close_settings":
+        await event.delete()
+        return await event.answer("Settings closed.")
+        
+    if data == "toggle_token":
+        new_val = not is_token_system_enabled()
+        db.set("cfg_use_token_system", "True" if new_val else "False")
+        await event.answer(f"Token system set to {'Enabled' if new_val else 'Disabled'}", alert=True)
+        
+    elif data == "toggle_forcesub":
+        new_val = not is_force_sub_enabled()
+        db.set("cfg_use_force_sub", "True" if new_val else "False")
+        await event.answer(f"Force Sub set to {'Enabled' if new_val else 'Disabled'}", alert=True)
+        
+    # Refresh the settings view
+    token_status = "✅ Enabled" if is_token_system_enabled() else "❌ Disabled"
+    forcesub_status = "✅ Enabled" if is_force_sub_enabled() else "❌ Disabled"
+    
+    text = f"""
+⚙️ **Bot Admin Settings Panel**
+
+Control bot features dynamically. Changes take effect instantly without restarting!
+
+• **Token System (/gen & Ads)**: {token_status}
+• **Force Join Subscription**: {forcesub_status}
+• **Channel Target**: {FORCE_LINK}
+"""
+    await event.edit(
+        text,
+        parse_mode="markdown",
+        buttons=[
+            [
+                Button.inline("Toggle Token System", data="toggle_token"),
+            ],
+            [
+                Button.inline("Toggle Force Subscription", data="toggle_forcesub"),
+            ],
+            [
+                Button.inline("Close Panel 🔒", data="close_settings"),
+            ]
+        ]
+    )
 
 
 # ------------------ COMMAND HANDLERS (from bot.py) ------------------
@@ -79,7 +185,7 @@ Let's make your video experience even better!
     )
 )
 async def generate_token(m: Message):
-    if not USE_TOKEN_SYSTEM:
+    if not is_token_system_enabled():
         return await m.reply("The token system is currently disabled. You can send links directly to download them!")
     is_user_active = db.get(f"active_{m.sender_id}")
     if is_user_active:
@@ -122,7 +228,7 @@ Keep the interactions going smoothly! 😊
     )
 )
 async def start_ntoken(m: Message):
-    if USE_TOKEN_SYSTEM and m.sender_id not in ADMINS:
+    if is_token_system_enabled() and m.sender_id not in ADMINS:
         if_token_avl = db.get(f"active_{m.sender_id}")
         if not if_token_avl:
             return await m.reply(
@@ -147,27 +253,28 @@ async def start_ntoken(m: Message):
     )
 )
 async def start_token(m: Message):
-    if not USE_TOKEN_SYSTEM:
+    if not is_token_system_enabled():
         return await m.reply("The token system is currently disabled. You can send links directly!")
     uuid = m.pattern_match.group(1).strip()
-    check_if = await is_user_on_chat(bot, FORCE_LINK, m.peer_id)
-    if not check_if:
-        return await m.reply(
-            "You haven't joined @RoldexVerse or @RoldexVerseChats yet. Please join the channel and then send me the link again.\nThank you!",
-            buttons=[
-                [
-                    Button.url("RoldexVerse", url="https://t.me/RoldexVerse"),
-                    Button.url("RoldexVerseChats",
-                               url="https://t.me/RoldexVerseChats"),
+    if is_force_sub_enabled():
+        check_if = await is_user_on_chat(bot, FORCE_LINK, m.peer_id)
+        if not check_if:
+            return await m.reply(
+                "You haven't joined @RoldexVerse or @RoldexVerseChats yet. Please join the channel and then send me the link again.\nThank you!",
+                buttons=[
+                    [
+                        Button.url("RoldexVerse", url="https://t.me/RoldexVerse"),
+                        Button.url("RoldexVerseChats",
+                                   url="https://t.me/RoldexVerseChats"),
+                    ],
+                    [
+                        Button.url(
+                            "ReCheck ♻️",
+                            url=f"https://{BOT_USERNAME}.t.me?start={uuid}",
+                        ),
+                    ],
                 ],
-                [
-                    Button.url(
-                        "ReCheck ♻️",
-                        url=f"https://{BOT_USERNAME}.t.me?start={uuid}",
-                    ),
-                ],
-            ],
-        )
+            )
     is_user_active = db.get(f"active_{m.sender_id}")
     if is_user_active:
         ttl = db.ttl(f"active_{m.sender_id}")
@@ -268,6 +375,16 @@ async def handle_message(m: Message):
     if not url:
         return await m.reply("Please enter a valid url.")
     hm = await m.reply("Sending you the media wait...")
+    
+    # 1. Force Sub check for direct link sending (if enabled and user is not admin)
+    if is_force_sub_enabled() and m.sender_id not in ADMINS:
+        check_if = await is_user_on_chat(bot, FORCE_LINK, m.sender_id)
+        if not check_if:
+            return await hm.edit(
+                f"❌ **Force Join Active**\n\nYou must join our channel {FORCE_LINK} to download files! Please join and then resend the link.",
+                buttons=[[Button.url("Join Channel", url=f"https://t.me/{FORCE_LINK.replace('@', '')}")]]
+            )
+            
     is_spam = db.get(m.sender_id)
     if is_spam and m.sender_id not in ADMINS:
         ttl = db.ttl(m.sender_id)
@@ -277,12 +394,14 @@ async def handle_message(m: Message):
                 t.to_humanreadable()} and try again.**",
             parse_mode="markdown",
         )
-    if USE_TOKEN_SYSTEM:
+        
+    if is_token_system_enabled():
         if_token_avl = db.get(f"active_{m.sender_id}")
         if not if_token_avl and m.sender_id not in ADMINS:
             return await hm.edit(
                 "Your account is deactivated. send /gen to get activate it again."
             )
+            
     shorturl = extract_code_from_url(url)
     if shorturl:
         fileid = db.get_key(shorturl)
