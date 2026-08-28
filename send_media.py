@@ -38,14 +38,29 @@ def split_file(file_path, max_size_bytes=2000000000):
     file_name = os.path.basename(file_path)
     base_name, ext = os.path.splitext(file_name)
     
+    buffer_size = 50 * 1024 * 1024 # 50 MB buffer
+    
     with open(file_path, "rb") as f:
         while True:
-            chunk = f.read(max_size_bytes)
-            if not chunk:
-                break
             part_name = os.path.join(file_dir, f"{base_name}.part{part_num}{ext}")
+            bytes_written = 0
+            
             with open(part_name, "wb") as part_file:
-                part_file.write(chunk)
+                while bytes_written < max_size_bytes:
+                    to_read = min(buffer_size, max_size_bytes - bytes_written)
+                    chunk = f.read(to_read)
+                    if not chunk:
+                        break
+                    part_file.write(chunk)
+                    bytes_written += len(chunk)
+            
+            if bytes_written == 0:
+                try:
+                    os.unlink(part_name)
+                except:
+                    pass
+                break
+                
             parts.append(part_name)
             part_num += 1
             
