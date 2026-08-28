@@ -26,6 +26,12 @@ bot = TelegramClient("main", API_ID, API_HASH)
 log = logging.getLogger(__name__)
 
 
+# General debug logger for incoming private messages
+@bot.on(events.NewMessage(incoming=True, outgoing=False, func=lambda x: x.is_private))
+async def debug_incoming_messages(event):
+    log.info(f"Received private message from {event.sender_id}: '{event.text}'")
+
+
 # ------------------ COMMAND HANDLERS (from bot.py) ------------------
 
 @bot.on(

@@ -16,41 +16,13 @@ from redis_db import db
 
 def check_url_patterns(url: str) -> bool:
     """
-    Check if the given URL matches any of the known URL patterns for code hosting services.
-
-    Parameters:
-    url (str): The URL to be checked.
-
-    Returns:
-    bool: True if the URL matches a known pattern, False otherwise.
+    Check if the given URL matches any of the known URL patterns for terabox and its domains.
     """
-    patterns = [
-        r"ww\.mirrobox\.com",
-        r"www\.nephobox\.com",
-        r"freeterabox\.com",
-        r"www\.freeterabox\.com",
-        r"1024tera\.com",
-        r"4funbox\.co",
-        r"www\.4funbox\.com",
-        r"mirrobox\.com",
-        r"nephobox\.com",
-        r"terabox\.app",
-        r"terabox\.com",
-        r"www\.terabox\.ap",
-        r"www\.terabox\.com",
-        r"www\.1024tera\.co",
-        r"www\.momerybox\.com",
-        r"teraboxapp\.com",
-        r"momerybox\.com",
-        r"tibibox\.com",
-        r"www\.tibibox\.com",
-        r"www\.teraboxapp\.com",
-    ]
-
-    for pattern in patterns:
-        if re.search(pattern, url):
+    url_lower = url.lower()
+    keywords = ["terabox", "nephobox", "mirrobox", "momerybox", "4funbox", "1024tera", "tibibox", "terashare"]
+    for keyword in keywords:
+        if keyword in url_lower:
             return True
-
     return False
 
 
