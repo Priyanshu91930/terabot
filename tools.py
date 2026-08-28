@@ -277,21 +277,35 @@ def generate_shortenedUrl(
 ):
     try:
         uid = str(uuid.uuid4())
-        data = requests.get(
-            "https://publicearn.com/api",
-            params={
-                "api": PUBLIC_EARN_API,
-                "url": f"https://t.me/{BOT_USERNAME}?start=token_{uid}",
-                "alias": uid.split("-", maxsplit=2)[0],
-            },
-        )
-        data.raise_for_status()
-        data_json = data.json()
-        if data_json.get("status") == "success":
-            url = data_json.get("shortenedUrl")
+        # If API key is empty, bypass ad shortener and return direct activation link
+        if not PUBLIC_EARN_API:
+            url = f"https://t.me/{BOT_USERNAME}?start=token_{uid}"
             db.set(f"token_{uid}", f"{sender_id}|{url}", ex=21600)
             return url
-        else:
-            return None
+
+        try:
+            data = requests.get(
+                "https://publicearn.com/api",
+                params={
+                    "api": PUBLIC_EARN_API,
+                    "url": f"https://t.me/{BOT_USERNAME}?start=token_{uid}",
+                    "alias": uid.split("-", maxsplit=2)[0],
+                },
+                timeout=10
+            )
+            data.raise_for_status()
+            data_json = data.json()
+            if data_json.get("status") == "success":
+                url = data_json.get("shortenedUrl")
+                db.set(f"token_{uid}", f"{sender_id}|{url}", ex=21600)
+                return url
+        except Exception as api_err:
+            print(f"Ad shortener API error: {api_err}. Falling back to direct link.")
+
+        # Fallback to direct activation link
+        url = f"https://t.me/{BOT_USERNAME}?start=token_{uid}"
+        db.set(f"token_{uid}", f"{sender_id}|{url}", ex=21600)
+        return url
     except Exception as e:
+        print(f"Error in generate_shortenedUrl: {e}")
         return None
