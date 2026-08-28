@@ -15,7 +15,7 @@ from telethon.types import UpdateNewMessage
 from telethon.tl import types
 
 from config import (ADMINS, API_HASH, API_ID, BOT_TOKEN, HOST, PASSWORD, PORT, 
-                    BOT_USERNAME, FORCE_LINK, MONGODB_URI, USE_TOKEN_SYSTEM)
+                    BOT_USERNAME, FORCE_LINK, FORCE_LINK_2, MONGODB_URI, USE_TOKEN_SYSTEM)
 from redis_db import db
 from send_media import VideoSender
 from terabox import get_data
@@ -68,7 +68,8 @@ Control bot features dynamically. Changes take effect instantly without restarti
 
 • **Token System (/gen & Ads)**: {token_status}
 • **Force Join Subscription**: {forcesub_status}
-• **Channel Target**: {FORCE_LINK}
+• **Channel Target 1**: {FORCE_LINK}
+• **Channel Target 2**: {FORCE_LINK_2}
 """
     await m.reply(
         text,
@@ -119,7 +120,8 @@ Control bot features dynamically. Changes take effect instantly without restarti
 
 • **Token System (/gen & Ads)**: {token_status}
 • **Force Join Subscription**: {forcesub_status}
-• **Channel Target**: {FORCE_LINK}
+• **Channel Target 1**: {FORCE_LINK}
+• **Channel Target 2**: {FORCE_LINK_2}
 """
     await event.edit(
         text,
@@ -251,13 +253,15 @@ async def start_token(m: Message):
         return await m.reply("The token system is currently disabled. You can send links directly!")
     uuid = m.pattern_match.group(1).strip()
     if is_force_sub_enabled():
-        check_if = await is_user_on_chat(bot, FORCE_LINK, m.peer_id)
-        if not check_if:
+        check_1 = await is_user_on_chat(bot, FORCE_LINK, m.peer_id)
+        check_2 = await is_user_on_chat(bot, FORCE_LINK_2, m.peer_id)
+        if not check_1 or not check_2:
             return await m.reply(
-                f"You haven't joined {FORCE_LINK} yet. Please join the channel and then send me the link again.\nThank you!",
+                "You haven't joined our channel and group yet. Please join both and then send me the link again.\nThank you!",
                 buttons=[
                     [
-                        Button.url("Join Channel 📢", url=f"https://t.me/{FORCE_LINK.replace('@', '')}"),
+                        Button.url("Join Channel 📢", url=FORCE_LINK),
+                        Button.url("Join Group 💬", url=FORCE_LINK_2),
                     ],
                     [
                         Button.url(
@@ -444,11 +448,17 @@ async def get_message(m: Message):
     
     # 1. Force Sub check for direct link sending (if enabled and user is not admin)
     if is_force_sub_enabled() and m.sender_id not in ADMINS:
-        check_if = await is_user_on_chat(bot, FORCE_LINK, m.sender_id)
-        if not check_if:
+        check_1 = await is_user_on_chat(bot, FORCE_LINK, m.sender_id)
+        check_2 = await is_user_on_chat(bot, FORCE_LINK_2, m.sender_id)
+        if not check_1 or not check_2:
             return await hm.edit(
-                f"❌ **Force Join Active**\n\nYou must join our channel {FORCE_LINK} to download files! Please join and then resend the link.",
-                buttons=[[Button.url("Join Channel", url=f"https://t.me/{FORCE_LINK.replace('@', '')}")]]
+                "❌ **Force Join Active**\n\nYou must join **both** our channel and group to download files! Please join and then resend the link.",
+                buttons=[
+                    [
+                        Button.url("Join Channel 📢", url=FORCE_LINK),
+                        Button.url("Join Group 💬", url=FORCE_LINK_2),
+                    ]
+                ]
             )
             
     is_spam = db.get(m.sender_id)
