@@ -212,7 +212,8 @@ Size: **{self.data["size"]}**
         if forwarded_message[0].id:
             db.set_key(self.uuid, forwarded_message[0].id)
             db.set_key(f"mid_{forwarded_message[0].id}", self.uuid)
-            db.set_key(shorturl, forwarded_message[0].id)
+            if shorturl:
+                db.set_key(shorturl, forwarded_message[0].id)
         self.client.remove_event_handler(
             self.stop, events.CallbackQuery(pattern=f"^stop{self.uuid}")
         )

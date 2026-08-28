@@ -279,17 +279,16 @@ async def handle_message(m: Message):
             "Your account is deactivated. send /gen to get activate it again."
         )
     shorturl = extract_code_from_url(url)
-    if not shorturl:
-        return await hm.edit("Seems like your link is invalid.")
-    fileid = db.get_key(shorturl)
-    if fileid:
-        uid = db.get_key(f"mid_{fileid}")
-        if uid:
-            check = await VideoSender.forward_file(
-                file_id=fileid, message=m, client=bot, edit_message=hm, uid=uid
-            )
-            if check:
-                return
+    if shorturl:
+        fileid = db.get_key(shorturl)
+        if fileid:
+            uid = db.get_key(f"mid_{fileid}")
+            if uid:
+                check = await VideoSender.forward_file(
+                    file_id=fileid, message=m, client=bot, edit_message=hm, uid=uid
+                )
+                if check:
+                    return
     try:
         data = get_data(url)
     except Exception:

@@ -55,16 +55,15 @@ def get_urls_from_string(string: str) -> str | None:
     Extracts all URLs from a given string.
 
     Parameters:
-        string (str): The input string.
+    string (str): The input string.
 
     Returns:
-        str: The first URL found in the input string, or None if no URLs were found.
+    str: The first URL found in the input string, or None if no URLs were found.
     """
     pattern = r"(https?://\S+)"
     urls = re.findall(pattern, string)
-    urls = [url for url in urls if check_url_patterns(url)]
     if not urls:
-        return
+        return None
     return urls[0]
 
 
