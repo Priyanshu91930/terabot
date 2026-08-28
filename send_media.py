@@ -221,7 +221,7 @@ __Powered by @TeraboxDownloaderINDIA__
                                     ],
                                 ],
                             ),
-                            timeout=300,
+                            timeout=900,
                         )
                         sent_files.append(file)
                     try:
@@ -286,7 +286,7 @@ __Powered by @TeraboxDownloaderINDIA__
                                 ],
                             ],
                         ),
-                        timeout=300,
+                        timeout=900,
                     )
                 try:
                     os.unlink(self.download)
@@ -296,6 +296,21 @@ __Powered by @TeraboxDownloaderINDIA__
                     os.unlink(self.data["file_name"])
                 except Exception:
                     pass
+        except asyncio.TimeoutError:
+            self.client.remove_event_handler(
+                self.stop, events.CallbackQuery(pattern=f"^stop{self.uuid}")
+            )
+            try:
+                os.unlink(self.download)
+            except Exception:
+                pass
+            try:
+                await self.edit_message.edit(
+                    "❌ **Telegram Timeout**\n\nFile data was uploaded but Telegram took too long to confirm. Please try again.",
+                    parse_mode="markdown",
+                )
+            except Exception:
+                pass
         except Exception as e:
             self.client.remove_event_handler(
                 self.stop, events.CallbackQuery(pattern=f"^stop{self.uuid}")
