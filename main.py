@@ -421,17 +421,17 @@ async def handle_message(m: Message):
         return await hm.edit("Sorry! API is dead or maybe your link is broken.")
     db.set(m.sender_id, time.monotonic(), ex=60)
 
-    if int(data["sizebytes"]) > 2097152000: # 2.00 GB limit
-        return await hm.edit(
-            f"❌ **File Too Large**\n\nTelegram restricts bot uploads to a maximum of **2.00 GB**. This file is **{data['size']}** and cannot be sent.",
-            parse_mode="markdown"
-        )
-
     if int(data["sizebytes"]) > 524288000 and m.sender_id not in ADMINS:
         return await hm.edit(
             f"Sorry! File is too big.\n**I can download only 500MB and this file is of {
                 data['size']}.**\nRather you can download this file from the link below:\n{url}",
             parse_mode="markdown",
+        )
+
+    if int(data["sizebytes"]) > 10737418240 and m.sender_id in ADMINS:
+        return await hm.edit(
+            f"❌ **File Too Large**\n\nEven for admins, the limit is capped at **10.00 GB** to prevent VPS storage overload. This file is **{data['size']}**.",
+            parse_mode="markdown"
         )
 
     sender = VideoSender(

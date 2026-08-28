@@ -26,6 +26,32 @@ from tools import (
 )
 
 
+def split_file(file_path, max_size_bytes=2000000000):
+    import os
+    file_size = os.path.getsize(file_path)
+    if file_size <= max_size_bytes:
+        return [file_path]
+    
+    parts = []
+    part_num = 1
+    file_dir = os.path.dirname(file_path)
+    file_name = os.path.basename(file_path)
+    base_name, ext = os.path.splitext(file_name)
+    
+    with open(file_path, "rb") as f:
+        while True:
+            chunk = f.read(max_size_bytes)
+            if not chunk:
+                break
+            part_name = os.path.join(file_dir, f"{base_name}.part{part_num}{ext}")
+            with open(part_name, "wb") as part_file:
+                part_file.write(chunk)
+            parts.append(part_name)
+            part_num += 1
+            
+    return parts
+
+
 class VideoSender:
 
     def __init__(
@@ -139,49 +165,114 @@ __Powered by @RoldexVerse__
         if not download or not download[0] or not os.path.exists(download[0]):
             return await self.handle_failed_download()
         self.download = Path(download[0])
+        file_size = os.path.getsize(self.download)
+        max_size = 2000000000 # 2GB
+        
         try:
-            with open(self.download, "rb") as out:
-                res = await upload_file(
-                    self.client, out, self.progress_bar, self.data["file_name"]
+            if file_size > max_size:
+                await self.edit_message.edit(f"📦 Large file detected ({get_formatted_size(file_size)}).\nSplitting into parts for Telegram Bot 2GB limit...")
+                parts = split_file(self.download, max_size)
+                
+                sent_files = []
+                for i, part in enumerate(parts):
+                    part_name = os.path.basename(part)
+                    await self.edit_message.edit(f"📤 Uploading part {i+1} of {len(parts)}: `{part_name}`...")
+                    
+                    # Temporarily set start time for the part progress bar
+                    self.start_time = time.time()
+                    with open(part, "rb") as out:
+                        res = await upload_file(
+                            self.client, out, self.progress_bar, part_name
+                        )
+                        attributes, mime_type = utils.get_attributes(part)
+                        part_caption = f"{self.caption}\n\n📂 **Part {i+1} of {len(parts)}**"
+                        
+                        file = await self.client.send_file(
+                            self.message.chat.id,
+                            file=res,
+                            caption=part_caption,
+                            background=True,
+                            reply_to=self.message.id,
+                            allow_cache=True,
+                            force_document=True,
+                            parse_mode="markdown",
+                            thumb=self.thumbnail,
+                            mime_type=mime_type,
+                            buttons=[
+                                [
+                                    Button.url("Channel ", url="https://t.me/RoldexVerse"),
+                                    Button.url("Group ", url="https://t.me/RoldexVerseChats"),
+                                ],
+                            ],
+                        )
+                        sent_files.append(file)
+                    try:
+                        os.unlink(part)
+                    except:
+                        pass
+                        
+                # Clean up original file
+                try:
+                    os.unlink(self.download)
+                except:
+                    pass
+                try:
+                    os.unlink(self.data["file_name"])
+                except:
+                    pass
+                    
+                self.client.remove_event_handler(
+                    self.stop, events.CallbackQuery(pattern=f"^stop{self.uuid}")
                 )
-                attributes, mime_type = utils.get_attributes(
-                    self.download,
-                )
-                file = await self.client.send_file(
-                    self.message.chat.id,
-                    file=res,
-                    caption=self.caption,
-                    background=True,
-                    reply_to=self.message.id,
-                    allow_cache=True,
-                    force_document=False,
-                    parse_mode="markdown",
-                    supports_streaming=True,
-                    thumb=self.thumbnail,
-                    mime_type=mime_type,
-                    buttons=[
-                        [
-                            Button.url(
-                                "Direct Link",
-                                url=f"https://{BOT_USERNAME}.t.me?start={self.uuid}",
-                            ),
+                try:
+                    await self.edit_message.delete()
+                except:
+                    pass
+                if sent_files:
+                    file = sent_files[0] # Set first part for mapping
+            else:
+                with open(self.download, "rb") as out:
+                    res = await upload_file(
+                        self.client, out, self.progress_bar, self.data["file_name"]
+                    )
+                    attributes, mime_type = utils.get_attributes(
+                        self.download,
+                    )
+                    file = await self.client.send_file(
+                        self.message.chat.id,
+                        file=res,
+                        caption=self.caption,
+                        background=True,
+                        reply_to=self.message.id,
+                        allow_cache=True,
+                        force_document=False,
+                        parse_mode="markdown",
+                        supports_streaming=True,
+                        thumb=self.thumbnail,
+                        mime_type=mime_type,
+                        buttons=[
+                            [
+                                Button.url(
+                                    "Direct Link",
+                                    url=f"https://{BOT_USERNAME}.t.me?start={self.uuid}",
+                                ),
+                            ],
+                            [
+                                Button.url("Channel ", url="https://t.me/RoldexVerse"),
+                                Button.url(
+                                    "Group ", url="https://t.me/RoldexVerseChats"
+                                ),
+                            ],
                         ],
-                        [
-                            Button.url("Channel ", url="https://t.me/RoldexVerse"),
-                            Button.url(
-                                "Group ", url="https://t.me/RoldexVerseChats"
-                            ),
-                        ],
-                    ],
-                )
-            try:
-                os.unlink(self.download)
-            except Exception:
-                pass
-            try:
-                os.unlink(self.data["file_name"])
-            except Exception:
-                pass
+                    )
+                try:
+                    os.unlink(self.download)
+                except Exception:
+                    pass
+                try:
+                    os.unlink(self.data["file_name"])
+                except Exception:
+                    pass
         except Exception as e:
             self.client.remove_event_handler(
                 self.stop, events.CallbackQuery(pattern=f"^stop{self.uuid}")
