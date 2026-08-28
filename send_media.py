@@ -18,7 +18,7 @@ from telethon.types import UpdateEditMessage
 
 from cansend import CanSend
 from config import BOT_USERNAME, PRIVATE_CHAT_ID
-from FastTelethon import upload_file
+from FastTelethon import upload_file  # unused, kept for compatibility
 from redis_db import db
 from tools import (
     convert_seconds,
@@ -198,34 +198,31 @@ __Powered by @TeraboxDownloaderINDIA__
                     
                     # Temporarily set start time for the part progress bar
                     self.start_time = time.time()
-                    with open(part, "rb") as out:
-                        res = await upload_file(
-                            self.client, out, self.progress_bar, part_name
-                        )
-                        attributes, mime_type = utils.get_attributes(part)
-                        part_caption = f"{self.caption}\n\n📂 **Part {i+1} of {len(parts)}**"
-                        
-                        file = await asyncio.wait_for(
-                            self.client.send_file(
-                                self.message.chat.id,
-                                file=res,
-                                caption=part_caption,
-                                background=True,
-                                reply_to=self.message.id,
-                                allow_cache=True,
-                                force_document=True,
-                                parse_mode="markdown",
-                                thumb=self.thumbnail,
-                                mime_type=mime_type,
-                                buttons=[
-                                    [
-                                        Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
-                                        Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
-                                    ],
+                    attributes, mime_type = utils.get_attributes(part)
+                    part_caption = f"{self.caption}\n\n📂 **Part {i+1} of {len(parts)}**"
+                    
+                    file = await asyncio.wait_for(
+                        self.client.send_file(
+                            self.message.chat.id,
+                            file=part,
+                            caption=part_caption,
+                            background=True,
+                            reply_to=self.message.id,
+                            allow_cache=True,
+                            force_document=True,
+                            parse_mode="markdown",
+                            thumb=self.thumbnail,
+                            mime_type=mime_type,
+                            progress_callback=self.progress_bar,
+                            buttons=[
+                                [
+                                    Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
+                                    Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
                                 ],
-                            ),
-                            timeout=900,
-                        )
+                            ],
+                        ),
+                        timeout=3600,
+                    )
                     sent_files.append(file)
                     try:
                         os.unlink(part)
@@ -252,14 +249,9 @@ __Powered by @TeraboxDownloaderINDIA__
                 if sent_files:
                     file = sent_files[0] # Set first part for mapping
             else:
-                log.info(f"[UPLOAD] Starting upload_file for: {self.data['file_name']} ({os.path.getsize(self.download)} bytes)")
-                with open(self.download, "rb") as out:
-                    res = await upload_file(
-                        self.client, out, self.progress_bar, self.data["file_name"]
-                    )
-                log.info(f"[UPLOAD] upload_file COMPLETE for: {self.data['file_name']}. Now calling send_file...")
+                log.info(f"[UPLOAD] Starting upload for: {self.data['file_name']} ({os.path.getsize(self.download)} bytes)")
                 await self.edit_message.edit(
-                    f"⏳ **Finalizing upload...**\n\n📁 `{self.data['file_name']}`\n\nData sent to Telegram, waiting for confirmation...\n\n__Powered by @TeraboxDownloaderINDIA__",
+                    f"📤 **Uploading...**\n\n📁 `{self.data['file_name']}`\n📦 `{get_formatted_size(os.path.getsize(self.download))}`\n\n__Powered by @TeraboxDownloaderINDIA__",
                     parse_mode="markdown",
                 )
                 attributes, mime_type = utils.get_attributes(
@@ -268,7 +260,7 @@ __Powered by @TeraboxDownloaderINDIA__
                 file = await asyncio.wait_for(
                     self.client.send_file(
                         self.message.chat.id,
-                        file=res,
+                        file=str(self.download),
                         caption=self.caption,
                         background=True,
                         reply_to=self.message.id,
@@ -278,6 +270,7 @@ __Powered by @TeraboxDownloaderINDIA__
                         supports_streaming=True,
                         thumb=self.thumbnail,
                         mime_type=mime_type,
+                        progress_callback=self.progress_bar,
                         buttons=[
                             [
                                 Button.url(
@@ -291,7 +284,7 @@ __Powered by @TeraboxDownloaderINDIA__
                             ],
                         ],
                     ),
-                    timeout=900,
+                    timeout=3600,
                 )
                 try:
                     os.unlink(self.download)
