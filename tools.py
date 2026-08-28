@@ -202,13 +202,15 @@ async def download_file(
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
-        response = requests.get(url, stream=True, headers=headers)
+        response = requests.get(url, stream=True, headers=headers, timeout=45)
         response.raise_for_status()
         with suppress(
             requests.exceptions.ChunkedEncodingError,
         ):
             with open(filename, "wb") as file:
-                for chunk in response.iter_content(chunk_size=1024):
+                for chunk in response.iter_content(chunk_size=1024 * 512):
+                    if not chunk:
+                        continue
                     file.write(chunk)
                     if callback:
                         downloaded_size = file.tell()
