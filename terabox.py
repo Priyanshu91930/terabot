@@ -98,6 +98,28 @@ def extract_surl_from_url(url: str) -> str | None:
         return False
 
 
+def parse_size_to_bytes(size_str: str) -> int:
+    try:
+        size_str = size_str.upper().strip()
+        match = re.match(r"([0-9.]+)\s*([A-Z]+)", size_str)
+        if not match:
+            return 0
+        value = float(match.group(1))
+        unit = match.group(2)
+        
+        multipliers = {
+            "B": 1,
+            "KB": 1024,
+            "MB": 1024 * 1024,
+            "GB": 1024 * 1024 * 1024,
+            "TB": 1024 * 1024 * 1024 * 1024,
+            "BYTES": 1,
+        }
+        return int(value * multipliers.get(unit, 1))
+    except Exception:
+        return 0
+
+
 def get_data(url: str):
     from config import TERABOX_API_BASE, TERABOX_API_KEY
     api_url = f"{TERABOX_API_BASE}/parse"
@@ -109,11 +131,12 @@ def get_data(url: str):
             return False
             
         res_data = response.json()
-        if not res_data.get("success") or not res_data.get("files"):
+        if not res_data.get("list"):
             return False
             
-        file_info = res_data["files"][0]
-        size_bytes = int(file_info.get("size", 0))
+        file_info = res_data["list"][0]
+        size_str = file_info.get("size", "0 B")
+        size_bytes = parse_size_to_bytes(size_str)
         
         # Check if thumbnail is available
         thumb = file_info.get("thumbnail")
@@ -123,7 +146,7 @@ def get_data(url: str):
             "link": file_info.get("dlink"),
             "direct_link": file_info.get("dlink"),
             "thumb": thumb,
-            "size": file_info.get("size_formatted") or get_formatted_size(size_bytes),
+            "size": size_str,
             "sizebytes": size_bytes,
         }
         return data
