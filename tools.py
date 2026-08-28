@@ -139,18 +139,29 @@ def convert_seconds(seconds: int) -> str:
 async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id: int) -> bool:
     """
     Check if a user is present in a specific chat, either as a member or having a pending join request.
-
-    Parameters:
-        bot (TelegramClient): The Telegram client instance.
-        chat_id (str): The ID or username of the chat.
-        user_id (int): The ID of the user.
-
-    Returns:
-        bool: True if the user is present in the chat or has a pending request, False otherwise.
     """
+    target_entity = chat_id
+    
+    # If chat_id is a private join/invite link, resolve the underlying chat/channel entity
+    if "t.me/" in str(chat_id) or "+" in str(chat_id):
+        try:
+            hash_val = str(chat_id).split("+")[-1] if "+" in str(chat_id) else str(chat_id).split("joinchat/")[-1]
+            hash_val = hash_val.strip("/")
+            
+            from telethon.tl.functions.messages import CheckChatInviteRequest
+            from telethon.tl.types import ChatInviteAlready
+            
+            invite_info = await bot(CheckChatInviteRequest(hash_val))
+            if isinstance(invite_info, ChatInviteAlready):
+                target_entity = invite_info.chat
+            else:
+                target_entity = invite_info
+        except Exception as e:
+            print(f"Error resolving invite link: {e}")
+
     # 1. Check direct channel membership via Telethon permissions (Normal Mode)
     try:
-        check = await bot.get_permissions(chat_id, user_id)
+        check = await bot.get_permissions(target_entity, user_id)
         if check:
             return True
     except Exception:
@@ -162,11 +173,13 @@ async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id: int) -> bo
         from pymongo import MongoClient
         
         # Resolve target channel to obtain its numeric ID (e.g. -100xxxxxxxxxx)
-        entity = await bot.get_input_entity(chat_id)
+        entity = await bot.get_input_entity(target_entity)
         if hasattr(entity, 'channel_id'):
             numeric_id = int(f"-100{entity.channel_id}")
         elif hasattr(entity, 'chat_id'):
             numeric_id = int(f"-100{entity.chat_id}")
+        elif hasattr(entity, 'id'):
+            numeric_id = int(f"-100{entity.id}")
         else:
             return False
             
