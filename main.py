@@ -163,7 +163,7 @@ Let's make your video experience even better!
         buttons=[
             [
                 Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
-                Button.url("Group 💬", url="https://t.me/+exoDGnQTZwM0N2M1"),
+                Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
             ],
             [
                 Button.url("Bot 🤖", url=f"https://t.me/{BOT_USERNAME}"),
@@ -510,3 +510,4 @@ bot.start(bot_token=BOT_TOKEN)
 print("Bot started successfully! Listening for messages...")
 
 bot.run_until_disconnected()
+

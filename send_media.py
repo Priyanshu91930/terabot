@@ -216,7 +216,7 @@ __Powered by @TeraboxDownloaderINDIA__
                             buttons=[
                                 [
                                     Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
-                                    Button.url("Group 💬", url="https://t.me/+exoDGnQTZwM0N2M1"),
+                                    Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
                                 ],
                             ],
                         )
@@ -274,7 +274,7 @@ __Powered by @TeraboxDownloaderINDIA__
                             ],
                             [
                                 Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
-                                Button.url("Group 💬", url="https://t.me/+exoDGnQTZwM0N2M1"),
+                                Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
                             ],
                         ],
                     )
@@ -445,3 +445,4 @@ __Powered by @TeraboxDownloaderINDIA__
             return True
         except Exception:
             return False
+
