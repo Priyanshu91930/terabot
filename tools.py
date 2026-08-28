@@ -90,14 +90,16 @@ def extract_surl_from_url(url: str) -> str:
 def get_formatted_size(size_bytes: int) -> str:
     """
     Returns a human-readable file size from the given number of bytes.
-
-    Parameters:
-        size_bytes (int): The number of bytes to be converted to a file size.
-
-    Returns:
-        str: The file size in a human-readable format.
     """
-    if size_bytes >= 1024 * 1024:
+    if size_bytes >= 1024 * 1024 * 1024 * 1024:
+        size = size_bytes / (1024 * 1024 * 1024 * 1024)
+        unit = "GB"  # actually TB, wait.
+        # Wait, 1024^4 is TB. Let's name it TB.
+        unit = "TB"
+    elif size_bytes >= 1024 * 1024 * 1024:
+        size = size_bytes / (1024 * 1024 * 1024)
+        unit = "GB"
+    elif size_bytes >= 1024 * 1024:
         size = size_bytes / (1024 * 1024)
         unit = "MB"
     elif size_bytes >= 1024:
@@ -105,7 +107,7 @@ def get_formatted_size(size_bytes: int) -> str:
         unit = "KB"
     else:
         size = size_bytes
-        unit = "b"
+        unit = "B"
 
     return f"{size:.2f} {unit}"
 

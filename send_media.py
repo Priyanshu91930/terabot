@@ -67,30 +67,44 @@ Size: **{self.data["size"]}**
         if not self.can_send.can_send():
             return
 
-        bar_length = 20
+        bar_length = 15
         elapsed_time = time.time() - self.start_time
         upload_speed = current_downloaded / elapsed_time if elapsed_time > 0 else 0
-        speed_line = f"Speed: **{get_formatted_size(upload_speed)}/s**"
+        speed_line = f"⚡️ **Speed**: `{get_formatted_size(upload_speed)}/s`"
+
+        state_emoji = "📥" if "download" in state.lower() else "📤"
 
         if total_downloaded > 0:
             percent = current_downloaded / total_downloaded
-            arrow = "█" * int(percent * bar_length)
-            spaces = "░" * (bar_length - len(arrow))
-            progress_bar = f"[{arrow + spaces}] {percent:.2%}"
-            size_line = f"Size: **{get_formatted_size(current_downloaded)}** / **{get_formatted_size(total_downloaded)}**"
+            filled_len = int(percent * bar_length)
+            bar = "■" * filled_len + "□" * (bar_length - filled_len)
+            progress_line = f"📊 **Progress**: `[{bar}] {percent:.2%}`"
+            size_line = f"📦 **Loaded**: `{get_formatted_size(current_downloaded)}` of `{get_formatted_size(total_downloaded)}`"
             time_remaining = (total_downloaded - current_downloaded) / upload_speed if upload_speed > 0 else 0
-            time_line = f"Time Remaining: `{convert_seconds(time_remaining)}`"
+            time_line = f"⏳ **Time Left**: `{convert_seconds(time_remaining)}`"
         else:
-            progress_bar = f"[{'░' * bar_length}]"
-            size_line = f"Size: **{get_formatted_size(current_downloaded)}** / Unknown"
-            time_line = "Time Remaining: `Calculating...`"
+            bar = "□" * bar_length
+            progress_line = f"📊 **Progress**: `[{bar}]`"
+            size_line = f"📦 **Loaded**: `{get_formatted_size(current_downloaded)}` of `Unknown`"
+            time_line = "⏳ **Time Left**: `Calculating...`"
 
-        head_text = f"{state} `{self.data['file_name']}`"
+        text = f"""
+{state_emoji} **{state} Video...**
+
+📁 **File**: `{self.data['file_name']}`
+{size_line}
+
+{progress_line}
+{speed_line}
+{time_line}
+
+__Powered by @RoldexVerse__
+"""
 
         await self.edit_message.edit(
-            f"{head_text}\n{progress_bar}\n{speed_line}\n{time_line}\n{size_line}",
+            text,
             parse_mode="markdown",
-            buttons=[Button.inline("Stop", data=f"stop{self.uuid}")],
+            buttons=[Button.inline("Stop ⛔", data=f"stop{self.uuid}")],
         )
 
     async def send_media(self, shorturl):
