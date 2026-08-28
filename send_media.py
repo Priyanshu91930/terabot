@@ -68,24 +68,24 @@ Size: **{self.data["size"]}**
             return
 
         bar_length = 20
-        percent = current_downloaded / total_downloaded
-        arrow = "█" * int(percent * bar_length)
-        spaces = "░" * (bar_length - len(arrow))
-
         elapsed_time = time.time() - self.start_time
-
-        head_text = f"{state} `{self.data['file_name']}`"
-        progress_bar = f"[{arrow + spaces}] {percent:.2%}"
         upload_speed = current_downloaded / elapsed_time if elapsed_time > 0 else 0
         speed_line = f"Speed: **{get_formatted_size(upload_speed)}/s**"
 
-        time_remaining = (
-            (total_downloaded - current_downloaded) / upload_speed
-            if upload_speed > 0
-            else 0
-        )
-        time_line = f"Time Remaining: `{convert_seconds(time_remaining)}`"
-        size_line = f"Size: **{get_formatted_size(current_downloaded)}** / **{get_formatted_size(total_downloaded)}**"
+        if total_downloaded > 0:
+            percent = current_downloaded / total_downloaded
+            arrow = "█" * int(percent * bar_length)
+            spaces = "░" * (bar_length - len(arrow))
+            progress_bar = f"[{arrow + spaces}] {percent:.2%}"
+            size_line = f"Size: **{get_formatted_size(current_downloaded)}** / **{get_formatted_size(total_downloaded)}**"
+            time_remaining = (total_downloaded - current_downloaded) / upload_speed if upload_speed > 0 else 0
+            time_line = f"Time Remaining: `{convert_seconds(time_remaining)}`"
+        else:
+            progress_bar = f"[{'░' * bar_length}]"
+            size_line = f"Size: **{get_formatted_size(current_downloaded)}** / Unknown"
+            time_line = "Time Remaining: `Calculating...`"
+
+        head_text = f"{state} `{self.data['file_name']}`"
 
         await self.edit_message.edit(
             f"{head_text}\n{progress_bar}\n{speed_line}\n{time_line}\n{size_line}",
