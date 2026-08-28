@@ -366,15 +366,98 @@ async def handle_raw_join_request(event):
         and message.is_private,
     )
 )
+# Global Task Queue Variables
+download_queue = []
+is_processing = False
+
+async def trigger_next_in_queue():
+    global is_processing, download_queue
+    if len(download_queue) == 0:
+        is_processing = False
+        return
+        
+    next_task = download_queue.pop(0)
+    is_processing = True
+    
+    # Update positions of remaining items in queue
+    for index, task in enumerate(download_queue):
+        try:
+            await task["edit_message"].edit(
+                f"⏳ **Your download is in queue.**\n\nPosition: `#{index + 1}`\n\nPlease wait, processing preceding files..."
+            )
+        except Exception:
+            pass
+            
+    # Process the next task in background
+    asyncio.create_task(run_task(next_task))
+
+async def run_task(task):
+    m = task["message"]
+    url = task["url"]
+    hm = task["edit_message"]
+    
+    try:
+        await hm.edit("🚀 **Processing your request... Starting download.**")
+        await process_download(m, url, hm)
+    except Exception as e:
+        log.exception(f"Error running queue task: {e}")
+    finally:
+        await trigger_next_in_queue()
+
+async def process_download(m: Message, url: str, hm: Message):
+    try:
+        data = get_data(url)
+    except Exception:
+        await hm.edit("Sorry! API is dead or maybe your link is broken.")
+        return
+    if not data:
+        await hm.edit("Sorry! API is dead or maybe your link is broken.")
+        return
+    db.set(m.sender_id, time.monotonic(), ex=60)
+
+    if int(data["sizebytes"]) > 524288000 and m.sender_id not in ADMINS:
+        await hm.edit(
+            f"Sorry! File is too big.\n**I can download only 500MB and this file is of {
+                data['size']}.**\nRather you can download this file from the link below:\n{url}",
+            parse_mode="markdown",
+        )
+        return
+
+    if int(data["sizebytes"]) > 10737418240 and m.sender_id in ADMINS:
+        await hm.edit(
+            f"❌ **File Too Large**\n\nEven for admins, the limit is capped at **10.00 GB** to prevent VPS storage overload. This file is **{data['size']}**.",
+            parse_mode="markdown"
+        )
+        return
+
+    sender = VideoSender(
+        client=bot,
+        data=data,
+        message=m,
+        edit_message=hm,
+        url=url,
+    )
+    await sender.send_video()
+    if sender.task:
+        await sender.task
+
+
+@bot.on(
+    events.NewMessage(
+        incoming=True,
+        outgoing=False,
+        func=lambda message: message.text
+        and get_urls_from_string(message.text)
+        and message.is_private,
+    )
+)
 async def get_message(m: Message):
-    asyncio.create_task(handle_message(m))
-
-
-async def handle_message(m: Message):
+    global is_processing, download_queue
     url = get_urls_from_string(m.text)
     if not url:
         return await m.reply("Please enter a valid url.")
-    hm = await m.reply("Sending you the media wait...")
+        
+    hm = await m.reply("Processing link...")
     
     # 1. Force Sub check for direct link sending (if enabled and user is not admin)
     if is_force_sub_enabled() and m.sender_id not in ADMINS:
@@ -413,35 +496,18 @@ async def handle_message(m: Message):
                 )
                 if check:
                     return
-    try:
-        data = get_data(url)
-    except Exception:
-        return await hm.edit("Sorry! API is dead or maybe your link is broken.")
-    if not data:
-        return await hm.edit("Sorry! API is dead or maybe your link is broken.")
-    db.set(m.sender_id, time.monotonic(), ex=60)
 
-    if int(data["sizebytes"]) > 524288000 and m.sender_id not in ADMINS:
-        return await hm.edit(
-            f"Sorry! File is too big.\n**I can download only 500MB and this file is of {
-                data['size']}.**\nRather you can download this file from the link below:\n{url}",
-            parse_mode="markdown",
+    task_payload = {"message": m, "url": url, "edit_message": hm}
+    
+    if is_processing:
+        download_queue.append(task_payload)
+        position = len(download_queue)
+        await hm.edit(
+            f"⏳ **Your download is in queue.**\n\nPosition: `#{position}`\n\nPlease wait, processing preceding files..."
         )
-
-    if int(data["sizebytes"]) > 10737418240 and m.sender_id in ADMINS:
-        return await hm.edit(
-            f"❌ **File Too Large**\n\nEven for admins, the limit is capped at **10.00 GB** to prevent VPS storage overload. This file is **{data['size']}**.",
-            parse_mode="markdown"
-        )
-
-    sender = VideoSender(
-        client=bot,
-        data=data,
-        message=m,
-        edit_message=hm,
-        url=url,
-    )
-    asyncio.create_task(sender.send_video())
+    else:
+        is_processing = True
+        asyncio.create_task(run_task(task_payload))
 
 
 # ------------------ START CLIENT ------------------
