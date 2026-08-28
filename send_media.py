@@ -226,7 +226,7 @@ __Powered by @TeraboxDownloaderINDIA__
                             ),
                             timeout=900,
                         )
-                        sent_files.append(file)
+                    sent_files.append(file)
                     try:
                         os.unlink(part)
                     except:

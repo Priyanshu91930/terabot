@@ -105,9 +105,11 @@ class UploadSender:
             except Exception as e:
                 err = str(e).lower()
                 if 'flood' in err or 'wait' in err:
-                    wait_time = 5 * (attempt + 1)
+                    import re
+                    match = re.search(r'sleep (\d+) seconds', err)
+                    wait_time = int(match.group(1)) if match else (10 * (attempt + 1))
                     log.warning(f"Flood wait on part {self.request.file_part}, sleeping {wait_time}s (attempt {attempt+1})")
-                    await asyncio.sleep(wait_time)
+                    await asyncio.sleep(wait_time + 2)
                 else:
                     raise
         log.error(f"Failed to send part {self.request.file_part} after 5 retries")
@@ -154,15 +156,11 @@ class ParallelTransferrer:
     async def _init_upload(
         self, connections: int, file_id: int, part_count: int, big: bool
     ) -> None:
-        self.senders = [
-            await self._create_upload_sender(file_id, part_count, big, 0, connections),
-            *await asyncio.gather(
-                *[
-                    self._create_upload_sender(file_id, part_count, big, i, connections)
-                    for i in range(1, connections)
-                ]
-            ),
-        ]
+        self.senders = []
+        for i in range(connections):
+            self.senders.append(
+                await self._create_upload_sender(file_id, part_count, big, i, connections)
+            )
 
     async def _create_upload_sender(
         self, file_id: int, part_count: int, big: bool, index: int, stride: int
