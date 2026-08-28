@@ -95,13 +95,13 @@ class VideoSender:
 File Name: `{self.data['file_name']}`
 Size: **{self.data["size"]}**
 
-@teraboxdownloader2027_bot
+@TeraboxDownloaderINDIA
             """
         self.caption2 = f"""
 Downloading `{self.data['file_name']}`
 Size: **{self.data["size"]}**
 
-@teraboxdownloader2027_bot
+@TeraboxDownloaderINDIA
             """
 
     async def progress_bar(self, current_downloaded, total_downloaded, state="Sending"):
@@ -139,7 +139,7 @@ Size: **{self.data["size"]}**
 {speed_line}
 {time_line}
 
-__Powered by @teraboxdownloader2027_bot__
+__Powered by @TeraboxDownloaderINDIA__
 """
 
         await self.edit_message.edit(
@@ -215,7 +215,8 @@ __Powered by @teraboxdownloader2027_bot__
                             mime_type=mime_type,
                             buttons=[
                                 [
-                                    Button.url("Bot 🤖", url=f"https://t.me/{BOT_USERNAME}"),
+                                    Button.url("Channel 📢", url="https://t.me/TeraboxDownloaderINDIA"),
+                                    Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
                                 ],
                             ],
                         )
@@ -272,7 +273,8 @@ __Powered by @teraboxdownloader2027_bot__
                                 ),
                             ],
                             [
-                                Button.url("Bot 🤖", url=f"https://t.me/{BOT_USERNAME}"),
+                                Button.url("Channel 📢", url="https://t.me/TeraboxDownloaderINDIA"),
+                                Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
                             ],
                         ],
                     )

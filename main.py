@@ -160,13 +160,8 @@ Let's make your video experience even better!
         parse_mode="markdown",
         buttons=[
             [
-                Button.url(
-                    "Website Source Code", url="https://github.com/r0ld3x/terabox-app"
-                ),
-                Button.url(
-                    "Bot Source Code",
-                    url="https://github.com/Priyanshu91930/terabot",
-                ),
+                Button.url("Channel 📢", url="https://t.me/TeraboxDownloaderINDIA"),
+                Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
             ],
             [
                 Button.url("Bot 🤖", url=f"https://t.me/{BOT_USERNAME}"),
