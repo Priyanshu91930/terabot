@@ -257,35 +257,33 @@ __Powered by @TeraboxDownloaderINDIA__
                 attributes, mime_type = utils.get_attributes(
                     self.download,
                 )
-                file = await asyncio.wait_for(
-                    self.client.send_file(
-                        self.message.chat.id,
-                        file=str(self.download),
-                        caption=self.caption,
-                        background=True,
-                        reply_to=self.message.id,
-                        allow_cache=True,
-                        force_document=False,
-                        parse_mode="markdown",
-                        supports_streaming=True,
-                        thumb=self.thumbnail,
-                        mime_type=mime_type,
-                        progress_callback=self.progress_bar,
-                        buttons=[
-                            [
-                                Button.url(
-                                    "Direct Link",
-                                    url=f"https://{BOT_USERNAME}.t.me?start={self.uuid}",
-                                ),
+                with open(self.download, "rb") as f:
+                    file = await asyncio.wait_for(
+                        self.client.send_file(
+                            self.message.chat.id,
+                            file=f,
+                            caption=self.caption,
+                            force_document=True,
+                            reply_to=self.message.id,
+                            parse_mode="markdown",
+                            thumb=self.thumbnail,
+                            mime_type=mime_type,
+                            progress_callback=self.progress_bar,
+                            buttons=[
+                                [
+                                    Button.url(
+                                        "Direct Link",
+                                        url=f"https://{BOT_USERNAME}.t.me?start={self.uuid}",
+                                    ),
+                                ],
+                                [
+                                    Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
+                                    Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
+                                ],
                             ],
-                            [
-                                Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
-                                Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
-                            ],
-                        ],
-                    ),
-                    timeout=3600,
-                )
+                        ),
+                        timeout=3600,
+                    )
                 try:
                     os.unlink(self.download)
                 except Exception:
