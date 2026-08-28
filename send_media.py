@@ -206,12 +206,9 @@ __Powered by @TeraboxDownloaderINDIA__
                             self.message.chat.id,
                             file=part,
                             caption=part_caption,
-                            background=True,
                             reply_to=self.message.id,
-                            allow_cache=True,
                             force_document=True,
                             parse_mode="markdown",
-                            thumb=self.thumbnail,
                             mime_type=mime_type,
                             progress_callback=self.progress_bar,
                             buttons=[
@@ -266,7 +263,6 @@ __Powered by @TeraboxDownloaderINDIA__
                             force_document=True,
                             reply_to=self.message.id,
                             parse_mode="markdown",
-                            thumb=self.thumbnail,
                             mime_type=mime_type,
                             progress_callback=self.progress_bar,
                             buttons=[
