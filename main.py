@@ -15,7 +15,7 @@ from telethon.types import UpdateNewMessage
 from telethon.tl import types
 
 from config import (ADMINS, API_HASH, API_ID, BOT_TOKEN, HOST, PASSWORD, PORT, 
-                    BOT_USERNAME, FORCE_LINK, MONGODB_URI)
+                    BOT_USERNAME, FORCE_LINK, MONGODB_URI, USE_TOKEN_SYSTEM)
 from redis_db import db
 from send_media import VideoSender
 from terabox import get_data
@@ -79,6 +79,8 @@ Let's make your video experience even better!
     )
 )
 async def generate_token(m: Message):
+    if not USE_TOKEN_SYSTEM:
+        return await m.reply("The token system is currently disabled. You can send links directly to download them!")
     is_user_active = db.get(f"active_{m.sender_id}")
     if is_user_active:
         ttl = db.ttl(f"active_{m.sender_id}")
@@ -120,7 +122,7 @@ Keep the interactions going smoothly! 😊
     )
 )
 async def start_ntoken(m: Message):
-    if m.sender_id not in ADMINS:
+    if USE_TOKEN_SYSTEM and m.sender_id not in ADMINS:
         if_token_avl = db.get(f"active_{m.sender_id}")
         if not if_token_avl:
             return await m.reply(
@@ -145,6 +147,8 @@ async def start_ntoken(m: Message):
     )
 )
 async def start_token(m: Message):
+    if not USE_TOKEN_SYSTEM:
+        return await m.reply("The token system is currently disabled. You can send links directly!")
     uuid = m.pattern_match.group(1).strip()
     check_if = await is_user_on_chat(bot, FORCE_LINK, m.peer_id)
     if not check_if:
@@ -273,11 +277,12 @@ async def handle_message(m: Message):
                 t.to_humanreadable()} and try again.**",
             parse_mode="markdown",
         )
-    if_token_avl = db.get(f"active_{m.sender_id}")
-    if not if_token_avl and m.sender_id not in ADMINS:
-        return await hm.edit(
-            "Your account is deactivated. send /gen to get activate it again."
-        )
+    if USE_TOKEN_SYSTEM:
+        if_token_avl = db.get(f"active_{m.sender_id}")
+        if not if_token_avl and m.sender_id not in ADMINS:
+            return await hm.edit(
+                "Your account is deactivated. send /gen to get activate it again."
+            )
     shorturl = extract_code_from_url(url)
     if shorturl:
         fileid = db.get_key(shorturl)
