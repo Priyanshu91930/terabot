@@ -1,8 +1,11 @@
 import asyncio
+import logging
 import os
 import time
 from pathlib import Path
 from uuid import uuid4
+
+log = logging.getLogger(__name__)
 
 import telethon
 from telethon import Button, TelegramClient, events, utils
@@ -249,17 +252,19 @@ __Powered by @TeraboxDownloaderINDIA__
                 if sent_files:
                     file = sent_files[0] # Set first part for mapping
             else:
+                log.info(f"[UPLOAD] Starting upload_file for: {self.data['file_name']} ({os.path.getsize(self.download)} bytes)")
                 with open(self.download, "rb") as out:
                     res = await upload_file(
                         self.client, out, self.progress_bar, self.data["file_name"]
                     )
-                    await self.edit_message.edit(
-                        f"⏳ **Finalizing upload...**\n\n📁 `{self.data['file_name']}`\n\nData sent to Telegram, waiting for confirmation...\n\n__Powered by @TeraboxDownloaderINDIA__",
-                        parse_mode="markdown",
-                    )
-                    attributes, mime_type = utils.get_attributes(
-                        self.download,
-                    )
+                log.info(f"[UPLOAD] upload_file COMPLETE for: {self.data['file_name']}. Now calling send_file...")
+                await self.edit_message.edit(
+                    f"⏳ **Finalizing upload...**\n\n📁 `{self.data['file_name']}`\n\nData sent to Telegram, waiting for confirmation...\n\n__Powered by @TeraboxDownloaderINDIA__",
+                    parse_mode="markdown",
+                )
+                attributes, mime_type = utils.get_attributes(
+                    self.download,
+                )
                     file = await asyncio.wait_for(
                         self.client.send_file(
                             self.message.chat.id,
@@ -296,7 +301,9 @@ __Powered by @TeraboxDownloaderINDIA__
                     os.unlink(self.data["file_name"])
                 except Exception:
                     pass
+                log.info(f"[UPLOAD] send_file SUCCESS! File delivered to user.")
         except asyncio.TimeoutError:
+            log.error(f"[UPLOAD] send_file TIMEOUT after 900s for: {self.data['file_name']}")
             self.client.remove_event_handler(
                 self.stop, events.CallbackQuery(pattern=f"^stop{self.uuid}")
             )
