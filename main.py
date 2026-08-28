@@ -169,8 +169,7 @@ Let's make your video experience even better!
                 ),
             ],
             [
-                Button.url("Channel ", url="https://t.me/RoldexVerse"),
-                Button.url("Group ", url="https://t.me/RoldexVerseChats"),
+                Button.url("Bot 🤖", url=f"https://t.me/{BOT_USERNAME}"),
             ],
         ],
     )
@@ -260,12 +259,10 @@ async def start_token(m: Message):
         check_if = await is_user_on_chat(bot, FORCE_LINK, m.peer_id)
         if not check_if:
             return await m.reply(
-                "You haven't joined @RoldexVerse or @RoldexVerseChats yet. Please join the channel and then send me the link again.\nThank you!",
+                f"You haven't joined {FORCE_LINK} yet. Please join the channel and then send me the link again.\nThank you!",
                 buttons=[
                     [
-                        Button.url("RoldexVerse", url="https://t.me/RoldexVerse"),
-                        Button.url("RoldexVerseChats",
-                                   url="https://t.me/RoldexVerseChats"),
+                        Button.url("Join Channel 📢", url=f"https://t.me/{FORCE_LINK.replace('@', '')}"),
                     ],
                     [
                         Button.url(

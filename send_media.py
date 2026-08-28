@@ -80,13 +80,13 @@ class VideoSender:
 File Name: `{self.data['file_name']}`
 Size: **{self.data["size"]}**
 
-@RoldexVerse
+@teraboxdownloader2027_bot
             """
         self.caption2 = f"""
 Downloading `{self.data['file_name']}`
 Size: **{self.data["size"]}**
 
-@RoldexVerse
+@teraboxdownloader2027_bot
             """
 
     async def progress_bar(self, current_downloaded, total_downloaded, state="Sending"):
@@ -124,7 +124,7 @@ Size: **{self.data["size"]}**
 {speed_line}
 {time_line}
 
-__Powered by @RoldexVerse__
+__Powered by @teraboxdownloader2027_bot__
 """
 
         await self.edit_message.edit(
@@ -200,8 +200,7 @@ __Powered by @RoldexVerse__
                             mime_type=mime_type,
                             buttons=[
                                 [
-                                    Button.url("Channel ", url="https://t.me/RoldexVerse"),
-                                    Button.url("Group ", url="https://t.me/RoldexVerseChats"),
+                                    Button.url("Bot 🤖", url=f"https://t.me/{BOT_USERNAME}"),
                                 ],
                             ],
                         )
@@ -258,10 +257,7 @@ __Powered by @RoldexVerse__
                                 ),
                             ],
                             [
-                                Button.url("Channel ", url="https://t.me/RoldexVerse"),
-                                Button.url(
-                                    "Group ", url="https://t.me/RoldexVerseChats"
-                                ),
+                                Button.url("Bot 🤖", url=f"https://t.me/{BOT_USERNAME}"),
                             ],
                         ],
                     )
