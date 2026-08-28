@@ -163,23 +163,59 @@ def convert_seconds(seconds: int) -> str:
         return f"{remaining_seconds_final}s"
 
 
-async def is_user_on_chat(bot: TelegramClient, chat_id: int, user_id: int) -> bool:
+async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id: int) -> bool:
     """
-    Check if a user is present in a specific chat.
+    Check if a user is present in a specific chat, either as a member or having a pending join request.
 
     Parameters:
         bot (TelegramClient): The Telegram client instance.
-        chat_id (int): The ID of the chat.
+        chat_id (str): The ID or username of the chat.
         user_id (int): The ID of the user.
 
     Returns:
-        bool: True if the user is present in the chat, False otherwise.
+        bool: True if the user is present in the chat or has a pending request, False otherwise.
     """
+    # 1. Check direct channel membership via Telethon permissions (Normal Mode)
     try:
         check = await bot.get_permissions(chat_id, user_id)
-        return check
+        if check:
+            return True
     except Exception:
-        return False
+        pass
+
+    # 2. Check pending join request in MongoDB (Join Request Mode)
+    try:
+        from config import MONGODB_URI
+        from pymongo import MongoClient
+        
+        # Resolve target channel to obtain its numeric ID (e.g. -100xxxxxxxxxx)
+        entity = await bot.get_input_entity(chat_id)
+        if hasattr(entity, 'channel_id'):
+            numeric_id = int(f"-100{entity.channel_id}")
+        elif hasattr(entity, 'chat_id'):
+            numeric_id = int(f"-100{entity.chat_id}")
+        else:
+            return False
+            
+        client = MongoClient(MONGODB_URI)
+        db = client.get_default_database()
+        if db is None or db.name == 'test':
+            db = client['terabox_downloader']
+            
+        join_reqs = db['joinrequests']
+        
+        # Look for a pending join request matching this user and channel
+        req = join_reqs.find_one({
+            "userId": user_id,
+            "chatId": numeric_id,
+            "status": "pending"
+        })
+        if req:
+            return True
+    except Exception as e:
+        print(f"Error checking MongoDB JoinRequest: {e}")
+        
+    return False
 
 
 async def download_file(

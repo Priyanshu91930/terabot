@@ -99,69 +99,34 @@ def extract_surl_from_url(url: str) -> str | None:
 
 
 def get_data(url: str):
-    netloc = urlparse(url).netloc
-    url = url.replace(netloc, "1024terabox.com")
-    response = requests.get(
-        url,
-        data="",
-    )
-    if not response.status_code == 200:
+    from config import TERABOX_API_BASE, TERABOX_API_KEY
+    api_url = f"{TERABOX_API_BASE}/parse"
+    api_key = TERABOX_API_KEY
+    
+    try:
+        response = requests.get(api_url, params={"url": url, "apiKey": api_key}, timeout=20)
+        if response.status_code != 200:
+            return False
+            
+        res_data = response.json()
+        if not res_data.get("success") or not res_data.get("files"):
+            return False
+            
+        file_info = res_data["files"][0]
+        size_bytes = int(file_info.get("size", 0))
+        
+        # Check if thumbnail is available
+        thumb = file_info.get("thumbnail")
+        
+        data = {
+            "file_name": file_info.get("name") or "video.mp4",
+            "link": file_info.get("dlink"),
+            "direct_link": file_info.get("dlink"),
+            "thumb": thumb,
+            "size": file_info.get("size_formatted") or get_formatted_size(size_bytes),
+            "sizebytes": size_bytes,
+        }
+        return data
+    except Exception as e:
+        print(f"Error calling Vercel API: {e}")
         return False
-    default_thumbnail = find_between(response.text, 'og:image" content="', '"')
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Content-Type": "application/json",
-        "Origin": "https://ytshorts.savetube.me",
-        "Alt-Used": "ytshorts.savetube.me",
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "same-origin",
-    }
-
-    response = requests.post(
-        "https://ytshorts.savetube.me/api/v1/terabox-downloader",
-        headers=headers,
-        json={"url": url},
-    )
-    if response.status_code != 200:
-        return False
-    response = response.json()
-    responses = response.get("response", [])
-    if not responses:
-        return False
-    resolutions = responses[0].get("resolutions", [])
-    if not resolutions:
-        return False
-    download = resolutions.get("Fast Download", "")
-    video = resolutions.get("HD Video", "")
-
-    response = requests.request(
-        "HEAD",
-        video,
-        data="",
-    )
-    content_length = response.headers.get("Content-Length", 0)
-    if not content_length:
-        content_length = None
-    idk = response.headers.get("content-disposition")
-    if idk:
-        fname = re.findall('filename="(.+)"', idk)
-    else:
-        fname = None
-    response = requests.head(
-        download,
-    )
-
-    direct_link = response.headers.get("location")
-    data = {
-        "file_name": (fname[0] if fname else None),
-        "link": (video if video else None),
-        "direct_link": (direct_link if direct_link else download if list else None),
-        "thumb": (default_thumbnail if default_thumbnail else None),
-        "size": (get_formatted_size(int(content_length)) if content_length else None),
-        "sizebytes": (int(content_length) if content_length else None),
-    }
-    return data

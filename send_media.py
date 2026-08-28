@@ -94,133 +94,91 @@ Size: **{self.data["size"]}**
         )
 
     async def send_media(self, shorturl):
-        try:
-            self.thumbnail.seek(0) if self.thumbnail else None
-            spoiler_media = (
-                await self.client._file_to_media(
-                    self.data["direct_link"],
-                    supports_streaming=True,
-                    progress_callback=self.progress_bar,
-                    thumb=self.thumbnail,
-                )
-            )[1]
-            spoiler_media.spoiler = True
-            file = await self.client.send_file(
-                self.message.chat.id,
-                file=spoiler_media,
-                caption=self.caption,
-                allow_cache=True,
-                force_document=False,
-                parse_mode="markdown",
-                reply_to=self.message.id,
-                supports_streaming=True,
-                background=True,
-                buttons=[
-                    [
-                        Button.url(
-                            "Direct Link",
-                            url=f"https://{BOT_USERNAME}.t.me?start={self.uuid}",
-                        ),
-                    ],
-                    [
-                        Button.url("Channel ", url="https://t.me/RoldexVerse"),
-                        Button.url("Group ", url="https://t.me/RoldexVerseChats"),
-                    ],
-                ],
-            )
+        path = Path(self.data["file_name"])
+        if not os.path.exists(path):
             try:
-                if self.edit_message:
-                    await self.edit_message.delete()
-            except Exception as e:
-                pass
-
-        except telethon.errors.rpcerrorlist.WebpageCurlFailedError:
-            path = Path(self.data["file_name"])
-            if not os.path.exists(path):
+                download_task = asyncio.create_task(
+                    download_file(
+                        self.data["direct_link"],
+                        self.data["file_name"],
+                        self.progress_bar,
+                    )
+                )
+                download = await asyncio.gather(download_task)
+            except:
+                await self.edit_message.edit("Failed to Download the media. trying again.")
                 try:
                     download_task = asyncio.create_task(
-                        download_file(
-                            self.data["direct_link"],
-                            self.data["file_name"],
-                            self.progress_bar,
+                            download_file(
+                                self.data["link"],
+                                self.data["file_name"],
+                                self.progress_bar,
+                            )
                         )
-                    )
                     download = await asyncio.gather(download_task)
                 except:
-                    await self.edit_message.edit("Failed to Download the media. trying again.")
-                    try:
-                        download_task = asyncio.create_task(
-                                download_file(
-                                    self.data["link"],
-                                    self.data["file_name"],
-                                    self.progress_bar,
-                                )
-                            )
-                        download = await asyncio.gather(download_task)
-                    except:
-                        return await self.handle_failed_download()
-            else:
-                download = [path]
-            if not download or not download[0] or not os.path.exists(download[0]):
-                return await self.handle_failed_download()
-            self.download = Path(download[0])
-            try:
-                with open(self.download, "rb") as out:
-                    res = await upload_file(
-                        self.client, out, self.progress_bar, self.data["file_name"]
-                    )
-                    attributes, mime_type = utils.get_attributes(
-                        self.download,
-                    )
-                    file = await self.client.send_file(
-                        self.message.chat.id,
-                        file=res,
-                        caption=self.caption,
-                        background=True,
-                        reply_to=self.message.id,
-                        allow_cache=True,
-                        force_document=False,
-                        parse_mode="markdown",
-                        supports_streaming=True,
-                        thumb=self.thumbnail,
-                        # attributes=attributes,
-                        mime_type=mime_type,
-                        buttons=[
-                            [
-                                Button.url(
-                                    "Direct Link",
-                                    url=f"https://{BOT_USERNAME}.t.me?start={self.uuid}",
-                                ),
-                            ],
-                            [
-                                Button.url("Channel ", url="https://t.me/RoldexVerse"),
-                                Button.url(
-                                    "Group ", url="https://t.me/RoldexVerseChats"
-                                ),
-                            ],
-                        ],
-                    )
-                try:
-                    os.unlink(self.download)
-                except Exception:
-                    pass
-                try:
-                    os.unlink(self.data["file_name"])
-                except Exception:
-                    pass
-            except Exception as e:
-                self.client.remove_event_handler(
-                    self.stop, events.CallbackQuery(pattern=f"^stop{self.uuid}")
+                    return await self.handle_failed_download()
+        else:
+            download = [path]
+        if not download or not download[0] or not os.path.exists(download[0]):
+            return await self.handle_failed_download()
+        self.download = Path(download[0])
+        try:
+            with open(self.download, "rb") as out:
+                res = await upload_file(
+                    self.client, out, self.progress_bar, self.data["file_name"]
                 )
-                try:
-                    os.unlink(self.download)
-                except Exception:
-                    pass
-                try:
-                    os.unlink(self.data["file_name"])
-                except Exception:
-                    pass
-                return await self.handle_failed_download()
+                attributes, mime_type = utils.get_attributes(
+                    self.download,
+                )
+                file = await self.client.send_file(
+                    self.message.chat.id,
+                    file=res,
+                    caption=self.caption,
+                    background=True,
+                    reply_to=self.message.id,
+                    allow_cache=True,
+                    force_document=False,
+                    parse_mode="markdown",
+                    supports_streaming=True,
+                    thumb=self.thumbnail,
+                    mime_type=mime_type,
+                    buttons=[
+                        [
+                            Button.url(
+                                "Direct Link",
+                                url=f"https://{BOT_USERNAME}.t.me?start={self.uuid}",
+                            ),
+                        ],
+                        [
+                            Button.url("Channel ", url="https://t.me/RoldexVerse"),
+                            Button.url(
+                                "Group ", url="https://t.me/RoldexVerseChats"
+                            ),
+                        ],
+                    ],
+                )
+            try:
+                os.unlink(self.download)
+            except Exception:
+                pass
+            try:
+                os.unlink(self.data["file_name"])
+            except Exception:
+                pass
+        except Exception as e:
+            self.client.remove_event_handler(
+                self.stop, events.CallbackQuery(pattern=f"^stop{self.uuid}")
+            )
+            try:
+                os.unlink(self.download)
+            except Exception:
+                pass
+            try:
+                os.unlink(self.data["file_name"])
+            except Exception:
+                pass
+            return await self.handle_failed_download()
 
         await self.save_forward_file(file, shorturl)
 

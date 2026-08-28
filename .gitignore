@@ -9,3 +9,4 @@ login.txt
 *.txt
 *.ipynb
 env/
+config.py

@@ -6,6 +6,7 @@ from telethon import Button
 from telethon.sync import TelegramClient, events
 from telethon.tl.custom.message import Message
 from telethon.types import UpdateNewMessage
+from telethon.tl import types
 
 from config import (ADMINS, API_HASH, API_ID, BOT_TOKEN, BOT_USERNAME,
                     FORCE_LINK)
@@ -202,6 +203,36 @@ async def remove(m: UpdateNewMessage):
 async def removeall(m: UpdateNewMessage):
     remove_all_videos()
     return await m.reply("Removed all videos from the list.")
+
+
+# Handle pending join requests and save them in MongoDB (Join Request Mode support)
+@bot.on(events.Raw(types.UpdateBotChatInviteRequester))
+async def handle_raw_join_request(event):
+    try:
+        from config import MONGODB_URI
+        from pymongo import MongoClient
+        from datetime import datetime
+        
+        user_id = event.user_id
+        chat_id = event.peer.channel_id if hasattr(event.peer, 'channel_id') else event.peer.chat_id
+        chat_id = int(f"-100{chat_id}")
+        
+        client = MongoClient(MONGODB_URI)
+        db = client.get_default_database()
+        if db is None or db.name == 'test':
+            db = client['terabox_downloader']
+            
+        join_reqs = db['joinrequests']
+        
+        # Upsert pending join request to MongoDB
+        join_reqs.update_one(
+            {"userId": user_id, "chatId": chat_id},
+            {"$set": {"status": "pending", "createdAt": datetime.utcnow()}},
+            upsert=True
+        )
+        print(f"Recorded pending join request for user {user_id} in chat {chat_id}")
+    except Exception as e:
+        print(f"Error recording join request in Python: {e}")
 
 
 bot.start(bot_token=BOT_TOKEN)
