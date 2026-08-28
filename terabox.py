@@ -148,6 +148,7 @@ def get_data(url: str):
             "thumb": thumb,
             "size": size_str,
             "sizebytes": size_bytes,
+            "headers": res_data.get("downloadHeaders"),
         }
         return data
     except Exception as e:

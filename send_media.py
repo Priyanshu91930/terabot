@@ -102,6 +102,7 @@ Size: **{self.data["size"]}**
                         self.data["direct_link"],
                         self.data["file_name"],
                         self.progress_bar,
+                        headers=self.data.get("headers"),
                     )
                 )
                 download = await asyncio.gather(download_task)
@@ -113,6 +114,7 @@ Size: **{self.data["size"]}**
                                 self.data["link"],
                                 self.data["file_name"],
                                 self.progress_bar,
+                                headers=self.data.get("headers"),
                             )
                         )
                     download = await asyncio.gather(download_task)
