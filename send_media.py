@@ -253,6 +253,10 @@ __Powered by @TeraboxDownloaderINDIA__
                     res = await upload_file(
                         self.client, out, self.progress_bar, self.data["file_name"]
                     )
+                    await self.edit_message.edit(
+                        f"⏳ **Finalizing upload...**\n\n📁 `{self.data['file_name']}`\n\nData sent to Telegram, waiting for confirmation...\n\n__Powered by @TeraboxDownloaderINDIA__",
+                        parse_mode="markdown",
+                    )
                     attributes, mime_type = utils.get_attributes(
                         self.download,
                     )
