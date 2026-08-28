@@ -215,7 +215,7 @@ parallel_transfer_locks: DefaultDict[int, asyncio.Lock] = defaultdict(
 )
 
 
-def stream_file(file_to_stream: BinaryIO, chunk_size=1024):
+def stream_file(file_to_stream: BinaryIO, chunk_size=512 * 1024):  # 512 KB chunks
     while True:
         data_read = file_to_stream.read(chunk_size)
         if not data_read:
@@ -235,12 +235,16 @@ async def _internal_transfer_to_telegram(
     hash_md5 = hashlib.md5()
     uploader = ParallelTransferrer(client)
     part_size, part_count, is_large = await uploader.init_upload(file_id, file_size)
+    last_progress_pct = -1
     buffer = bytearray()
     for data in stream_file(response):
         if progress_callback:
-            r = progress_callback(response.tell(), file_size)
-            if inspect.isawaitable(r):
-                await r
+            current_pct = int((response.tell() / file_size) * 100) if file_size else 0
+            if current_pct != last_progress_pct:  # Only call on pct change
+                last_progress_pct = current_pct
+                r = progress_callback(response.tell(), file_size)
+                if inspect.isawaitable(r):
+                    await r
         if not is_large:
             hash_md5.update(data)
         if len(buffer) == 0 and len(data) == part_size:
