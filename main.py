@@ -15,7 +15,8 @@ from telethon.types import UpdateNewMessage
 from telethon.tl import types
 
 from config import (ADMINS, API_HASH, API_ID, BOT_TOKEN, HOST, PASSWORD, PORT, 
-                    BOT_USERNAME, FORCE_LINK, FORCE_LINK_2, MONGODB_URI, USE_TOKEN_SYSTEM)
+                    BOT_USERNAME, FORCE_LINK, FORCE_LINK_2, FORCE_LINK_3, 
+                    UPDATE_CHANNEL_URL, MONGODB_URI, USE_TOKEN_SYSTEM)
 from redis_db import db
 from send_media import VideoSender
 from terabox import get_data
@@ -70,6 +71,7 @@ Control bot features dynamically. Changes take effect instantly without restarti
 • **Force Join Subscription**: {forcesub_status}
 • **Channel Target 1**: {FORCE_LINK}
 • **Channel Target 2**: {FORCE_LINK_2}
+• **Group Target 3**: {FORCE_LINK_3}
 """
     await m.reply(
         text,
@@ -122,6 +124,7 @@ Control bot features dynamically. Changes take effect instantly without restarti
 • **Force Join Subscription**: {forcesub_status}
 • **Channel Target 1**: {FORCE_LINK}
 • **Channel Target 2**: {FORCE_LINK_2}
+• **Group Target 3**: {FORCE_LINK_3}
 """
     await event.edit(
         text,
@@ -162,12 +165,12 @@ Let's make your video experience even better!
         parse_mode="markdown",
         buttons=[
             [
-                Button.url("Channel 1 📢", url="https://t.me/TeraboxDownloaderINDIA"),
-                Button.url("Channel 2 📢", url="https://t.me/+L7tcuoCsTaMxZWVl"),
+                Button.url("Channel 1 📢", url=FORCE_LINK),
+                Button.url("Channel 2 📢", url=FORCE_LINK_2),
             ],
             [
-                Button.url("Group 💬", url="https://t.me/+cySPj7iDogFkMzc1"),
-                Button.url("Bot 🤖", url=f"https://t.me/{BOT_USERNAME}"),
+                Button.url("Group 💬", url=FORCE_LINK_3),
+                Button.url("Update Channel 📢", url=UPDATE_CHANNEL_URL),
             ],
         ],
     )
@@ -256,13 +259,17 @@ async def start_token(m: Message):
     if is_force_sub_enabled():
         check_1 = await is_user_on_chat(bot, FORCE_LINK, m.peer_id)
         check_2 = await is_user_on_chat(bot, FORCE_LINK_2, m.peer_id)
-        if not check_1 or not check_2:
+        check_3 = await is_user_on_chat(bot, FORCE_LINK_3, m.peer_id)
+        if not check_1 or not check_2 or not check_3:
             return await m.reply(
-                "You haven't joined our channel and group yet. Please join both and then send me the link again.\nThank you!",
+                "You haven't joined our channels and group yet. Please join all of them and then send me the link again.\nThank you!",
                 buttons=[
                     [
-                        Button.url("Join Channel 📢", url=FORCE_LINK),
-                        Button.url("Join Group 💬", url=FORCE_LINK_2),
+                        Button.url("Join Channel 1 📢", url=FORCE_LINK),
+                        Button.url("Join Channel 2 📢", url=FORCE_LINK_2),
+                    ],
+                    [
+                        Button.url("Join Group 💬", url=FORCE_LINK_3),
                     ],
                     [
                         Button.url(
@@ -451,13 +458,17 @@ async def get_message(m: Message):
     if is_force_sub_enabled() and m.sender_id not in ADMINS:
         check_1 = await is_user_on_chat(bot, FORCE_LINK, m.sender_id)
         check_2 = await is_user_on_chat(bot, FORCE_LINK_2, m.sender_id)
-        if not check_1 or not check_2:
+        check_3 = await is_user_on_chat(bot, FORCE_LINK_3, m.sender_id)
+        if not check_1 or not check_2 or not check_3:
             return await hm.edit(
-                "❌ **Force Join Active**\n\nYou must join **both** our channel and group to download files! Please join and then resend the link.",
+                "❌ **Force Join Active**\n\nYou must join all our channels and group to download files! Please join all of them and then resend the link.",
                 buttons=[
                     [
-                        Button.url("Join Channel 📢", url=FORCE_LINK),
-                        Button.url("Join Group 💬", url=FORCE_LINK_2),
+                        Button.url("Join Channel 1 📢", url=FORCE_LINK),
+                        Button.url("Join Channel 2 📢", url=FORCE_LINK_2),
+                    ],
+                    [
+                        Button.url("Join Group 💬", url=FORCE_LINK_3),
                     ]
                 ]
             )
