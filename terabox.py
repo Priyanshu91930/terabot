@@ -145,23 +145,19 @@ def get_data(url: str):
         is_folder = all(f.get("status") == "folder_file" for f in files)
 
         if is_folder:
-            # Find first video file in folder
             video_exts = {'mp4', 'mkv', 'webm', 'mov', 'avi', 'ts', 'wmv', '3gp', 'flv', 'mp3', 'aac', 'flac'}
-            target_file = None
-            for f in files:
-                ext = (f.get("name") or "").rsplit('.', 1)[-1].lower()
-                if ext in video_exts:
-                    target_file = f
-                    break
-            if not target_file:
-                target_file = files[0]  # fallback to first file
-
-            fs_id = target_file.get("fs_id")
             share_id = res_data.get("listData_share_id")
             uk = res_data.get("listData_uk")
+            headers = res_data.get("downloadHeaders")
+            download_headers = res_data.get("downloadHeaders")
 
-            # Fetch dlink via /dlink endpoint on Vercel API
-            if fs_id and share_id and uk:
+            # Fetch dlinks for ALL files in folder
+            all_files = []
+            for f in files:
+                ext = (f.get("name") or "").rsplit('.', 1)[-1].lower()
+                fs_id = f.get("fs_id")
+                if not fs_id or not share_id or not uk:
+                    continue
                 try:
                     dlink_res = requests.get(
                         f"{TERABOX_API_BASE}/dlink",
@@ -172,32 +168,33 @@ def get_data(url: str):
                         dlink_data = dlink_res.json()
                         dlink = dlink_data.get("dlink", "")
                         if dlink:
-                            size_str = target_file.get("size", "0 B")
+                            size_str = f.get("size", "0 B")
                             size_bytes = parse_size_to_bytes(size_str)
-                            print(f"[FOLDER] Resolved dlink for: {target_file.get('name')}")
-                            return {
-                                "file_name": target_file.get("name") or "video.mp4",
+                            all_files.append({
+                                "file_name": f.get("name") or "file",
                                 "link": dlink,
                                 "direct_link": dlink,
-                                "thumb": target_file.get("thumbnail", ""),
+                                "thumb": f.get("thumbnail", ""),
                                 "size": size_str,
                                 "sizebytes": size_bytes,
-                                "headers": res_data.get("downloadHeaders"),
-                                "is_folder": True,
-                                "total_files": len(files),
-                            }
+                                "headers": download_headers,
+                            })
+                            print(f"[FOLDER] Resolved dlink for: {f.get('name')}")
                 except Exception as e:
-                    print(f"[FOLDER] Failed to fetch dlink via /dlink: {e}")
+                    print(f"[FOLDER] Failed to fetch dlink for {f.get('name')}: {e}")
+
+            if all_files:
+                return {"is_folder": True, "files": all_files, "total_files": len(all_files)}
 
             # Fallback: just return folder info with no download
             return {
-                "file_name": target_file.get("name") or "folder",
+                "file_name": files[0].get("name") if files else "folder",
                 "link": None,
                 "direct_link": None,
-                "thumb": target_file.get("thumbnail", ""),
+                "thumb": "",
                 "size": "0 B",
                 "sizebytes": 0,
-                "headers": res_data.get("downloadHeaders"),
+                "headers": headers,
                 "is_folder": True,
                 "total_files": len(files),
             }

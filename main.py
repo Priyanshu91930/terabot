@@ -421,10 +421,41 @@ async def process_download(m: Message, url: str, hm: Message):
         return
     db.set(m.sender_id, time.monotonic(), ex=60)
 
+    # Folder: send all files one by one
+    if isinstance(data, dict) and data.get("is_folder") and data.get("files"):
+        files = data["files"]
+        total = len(files)
+        await hm.edit(f"📁 **Folder detected!** {total} files found. Starting download...\n\n__Powered by @TeraboxDownloaderINDIA__", parse_mode="markdown")
+
+        for i, file_data in enumerate(files, 1):
+            sizebytes = int(file_data.get("sizebytes", 0))
+            if sizebytes > 524288000 and m.sender_id not in ADMINS:
+                await m.reply(f"⏭️ Skipping **{file_data['file_name']}** (too big: {file_data['size']})")
+                continue
+            if sizebytes > 10737418240:
+                await m.reply(f"⏭️ Skipping **{file_data['file_name']}** (too big: {file_data['size']})")
+                continue
+
+            status_msg = await m.reply(f"📥 **File {i}/{total}**: `{file_data['file_name']}`\n📦 Size: {file_data['size']}")
+            sender = VideoSender(
+                client=bot,
+                data=file_data,
+                message=m,
+                edit_message=status_msg,
+                url=url,
+            )
+            await sender.send_video()
+            if sender.task:
+                await sender.task
+            await asyncio.sleep(1)
+
+        await m.reply(f"✅ **All done!** {total} files processed.\n\n__Powered by @TeraboxDownloaderINDIA__", parse_mode="markdown")
+        return
+
+    # Single file
     if int(data["sizebytes"]) > 524288000 and m.sender_id not in ADMINS:
         await hm.edit(
-            f"Sorry! File is too big.\n**I can download only 500MB and this file is of {
-                data['size']}.**\nRather you can download this file from the link below:\n{url}",
+            f"Sorry! File is too big.\n**I can download only 500MB and this file is of {data['size']}.**\nRather you can download this file from the link below:\n{url}",
             parse_mode="markdown",
         )
         return
@@ -489,8 +520,7 @@ async def get_message(m: Message):
         ttl = db.ttl(m.sender_id)
         t = hr.Time(str(ttl), default_unit=hr.Time.Unit.SECOND)
         return await hm.edit(
-            f"You are spamming.\n**Please wait {
-                t.to_humanreadable()} and try again.**",
+            f"You are spamming.\n**Please wait {t.to_humanreadable()} and try again.**",
             parse_mode="markdown",
         )
         
