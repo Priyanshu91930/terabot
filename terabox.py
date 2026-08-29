@@ -200,6 +200,26 @@ def get_data(url: str):
             }
 
         # Normal single/multi file (non-folder)
+        # If multiple files with dlinks, return all of them
+        if len(files) > 1 and has_dlinks:
+            all_files = []
+            for fi in files:
+                dlink = fi.get("dlink") or ""
+                if not dlink:
+                    continue
+                all_files.append({
+                    "file_name": fi.get("name") or "file",
+                    "link": dlink,
+                    "direct_link": dlink,
+                    "thumb": fi.get("thumbnail") or fi.get("thumbs", {}).get("url3", ""),
+                    "size": fi.get("size", "0 B"),
+                    "sizebytes": parse_size_to_bytes(fi.get("size", "0 B")),
+                    "headers": res_data.get("downloadHeaders"),
+                })
+            if len(all_files) > 1:
+                print(f"[MULTI] Returning {len(all_files)} files with dlinks")
+                return {"is_folder": True, "files": all_files, "total_files": len(all_files)}
+
         file_info = files[0]
         size_str = file_info.get("size", "0 B")
         size_bytes = parse_size_to_bytes(size_str)
