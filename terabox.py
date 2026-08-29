@@ -142,8 +142,11 @@ def get_data(url: str):
 
         files = res_data["list"]
 
-        # Detect folder link: all files have status='folder_file' and empty dlink
-        is_folder = all(f.get("status") == "folder_file" for f in files)
+        # Check if files have dlinks already (folder-expanded with dlinks resolved)
+        has_dlinks = any(f.get("dlink") for f in files)
+
+        # Detect folder link: all files have status='folder_file' and NO dlinks
+        is_folder = not has_dlinks and all(f.get("status") == "folder_file" for f in files)
 
         if is_folder:
             share_id = res_data.get("listData_share_id")
