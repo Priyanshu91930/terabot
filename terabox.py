@@ -151,51 +151,34 @@ def get_data(url: str):
             headers = res_data.get("downloadHeaders")
             download_headers = res_data.get("downloadHeaders")
 
+            # Return all files WITHOUT dlinks - bot will fetch on-demand during upload
             all_files = []
-            for idx, f in enumerate(files):
-                fs_id = f.get("fs_id")
-                if not fs_id or not share_id or not uk:
-                    continue
+            for f in files:
+                size_str = f.get("size", "0 B")
+                size_bytes = parse_size_to_bytes(size_str)
+                all_files.append({
+                    "file_name": f.get("name") or "file",
+                    "fs_id": f.get("fs_id"),
+                    "link": f.get("dlink") or "",
+                    "direct_link": f.get("dlink") or "",
+                    "thumb": f.get("thumbnail", ""),
+                    "size": size_str,
+                    "sizebytes": size_bytes,
+                    "headers": download_headers,
+                    "share_id": share_id,
+                    "uk": uk,
+                })
 
-                dlink = None
-                for attempt in range(3):
-                    try:
-                        dlink_res = requests.get(
-                            f"{TERABOX_API_BASE}/dlink",
-                            params={"apiKey": api_key, "fs_id": fs_id, "share_id": share_id, "uk": uk, "from": "bot"},
-                            timeout=15
-                        )
-                        if dlink_res.status_code == 200:
-                            try:
-                                dlink_data = dlink_res.json()
-                                dlink = dlink_data.get("dlink", "")
-                                if dlink:
-                                    break
-                            except ValueError:
-                                print(f"[FOLDER] HTML response (rate limited), retrying in 2s...")
-                                time.sleep(2)
-                                continue
-                    except Exception as e:
-                        print(f"[FOLDER] Attempt {attempt+1} failed for {f.get('name')}: {e}")
-                        time.sleep(1)
+            if all_files:
+                print(f"[FOLDER] Returning {len(all_files)} files (dlinks fetched on-demand)")
+                return {"is_folder": True, "files": all_files, "total_files": len(all_files)}
 
-                if dlink:
-                    size_str = f.get("size", "0 B")
-                    size_bytes = parse_size_to_bytes(size_str)
-                    all_files.append({
-                        "file_name": f.get("name") or "file",
-                        "link": dlink,
-                        "direct_link": dlink,
-                        "thumb": f.get("thumbnail", ""),
-                        "size": size_str,
-                        "sizebytes": size_bytes,
-                        "headers": download_headers,
-                    })
-                    print(f"[FOLDER] [{idx+1}/{len(files)}] Resolved: {f.get('name')}")
-                else:
-                    print(f"[FOLDER] [{idx+1}/{len(files)}] FAILED: {f.get('name')}")
-
-                time.sleep(0.5)
+            return {
+                "file_name": files[0].get("name") if files else "folder",
+                "link": None, "direct_link": None, "thumb": "",
+                "size": "0 B", "sizebytes": 0, "headers": headers,
+                "is_folder": True, "total_files": len(files),
+            }
 
             if all_files:
                 return {"is_folder": True, "files": all_files, "total_files": len(all_files)}

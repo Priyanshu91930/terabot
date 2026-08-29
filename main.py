@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+import requests
 from datetime import datetime
 from pathlib import Path
 import os
@@ -17,7 +18,8 @@ from telethon.tl import types
 from config import (ADMINS, API_HASH, API_ID, BOT_TOKEN, HOST, PASSWORD, PORT, 
                     BOT_USERNAME, FORCE_SUB_ID_1, FORCE_SUB_ID_2, FORCE_SUB_ID_3,
                     FORCE_LINK_1, FORCE_LINK_2, FORCE_LINK_3,
-                    UPDATE_CHANNEL_URL, MONGODB_URI, USE_TOKEN_SYSTEM)
+                    UPDATE_CHANNEL_URL, MONGODB_URI, USE_TOKEN_SYSTEM,
+                    TERABOX_API_BASE, TERABOX_API_KEY)
 from redis_db import db
 from send_media import VideoSender
 from terabox import get_data
@@ -436,6 +438,29 @@ async def process_download(m: Message, url: str, hm: Message):
                 await m.reply(f"⏭️ Skipping **{file_data['file_name']}** (too big: {file_data['size']})")
                 continue
 
+            # Fetch dlink on-demand for this file only
+            dlink = file_data.get("direct_link") or ""
+            if not dlink and file_data.get("fs_id"):
+                try:
+                    dlink_res = requests.get(
+                        f"{TERABOX_API_BASE}/dlink",
+                        params={"apiKey": TERABOX_API_KEY, "fs_id": file_data["fs_id"],
+                                "share_id": file_data.get("share_id"), "uk": file_data.get("uk"), "from": "bot"},
+                        timeout=15
+                    )
+                    if dlink_res.status_code == 200:
+                        dlink_data = dlink_res.json()
+                        dlink = dlink_data.get("dlink", "")
+                except Exception as e:
+                    print(f"[FOLDER] dlink fetch failed for {file_data['file_name']}: {e}")
+
+            if not dlink:
+                await m.reply(f"⏭️ Skipping **{file_data['file_name']}** (no download link)")
+                continue
+
+            file_data["direct_link"] = dlink
+            file_data["link"] = dlink
+
             status_msg = await m.reply(f"📥 **File {i}/{total}**: `{file_data['file_name']}`\n📦 Size: {file_data['size']}")
             sender = VideoSender(
                 client=bot,
@@ -447,7 +472,7 @@ async def process_download(m: Message, url: str, hm: Message):
             await sender.send_video()
             if sender.task:
                 await sender.task
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
 
         await m.reply(f"✅ **All done!** {total} files processed.\n\n__Powered by @TeraboxDownloaderINDIA__", parse_mode="markdown")
         return
