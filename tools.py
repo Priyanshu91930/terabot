@@ -19,7 +19,7 @@ def check_url_patterns(url: str) -> bool:
     Check if the given URL matches any of the known URL patterns for terabox and its domains.
     """
     url_lower = url.lower()
-    keywords = ["terabox", "nephobox", "mirrobox", "momerybox", "4funbox", "1024tera", "tibibox", "terashare"]
+    keywords = ["terabox", "nephobox", "mirrobox", "momerybox", "4funbox", "1024tera", "tibibox", "tibbox", "terashare", "freeterabox", "dubox"]
     for keyword in keywords:
         if keyword in url_lower:
             return True
