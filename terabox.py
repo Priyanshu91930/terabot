@@ -131,7 +131,7 @@ def get_data(url: str):
     api_key = TERABOX_API_KEY
     
     try:
-        response = requests.get(api_url, params={"url": url, "apiKey": api_key}, timeout=20)
+        response = requests.get(api_url, params={"url": url, "apiKey": api_key, "from": "bot"}, timeout=20)
         if response.status_code != 200:
             return False
             
