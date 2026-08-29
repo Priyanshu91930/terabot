@@ -427,6 +427,8 @@ async def process_download(m: Message, url: str, hm: Message):
     if isinstance(data, dict) and data.get("is_folder") and data.get("files"):
         files = data["files"]
         total = len(files)
+        cached_sign = ""
+        cached_timestamp = ""
         await hm.edit(f"📁 **Folder detected!** {total} files found. Starting download...\n\n__Powered by @TeraboxDownloaderINDIA__", parse_mode="markdown")
 
         for i, file_data in enumerate(files, 1):
@@ -442,15 +444,24 @@ async def process_download(m: Message, url: str, hm: Message):
             dlink = file_data.get("direct_link") or ""
             if not dlink and file_data.get("fs_id"):
                 try:
+                    dlink_params = {"apiKey": TERABOX_API_KEY, "fs_id": file_data["fs_id"],
+                                    "share_id": file_data.get("share_id"), "uk": file_data.get("uk"), "from": "bot"}
+                    if cached_sign and cached_timestamp:
+                        dlink_params["sign"] = cached_sign
+                        dlink_params["timestamp"] = cached_timestamp
                     dlink_res = requests.get(
                         f"{TERABOX_API_BASE}/dlink",
-                        params={"apiKey": TERABOX_API_KEY, "fs_id": file_data["fs_id"],
-                                "share_id": file_data.get("share_id"), "uk": file_data.get("uk"), "from": "bot"},
+                        params=dlink_params,
                         timeout=15
                     )
                     if dlink_res.status_code == 200:
                         dlink_data = dlink_res.json()
                         dlink = dlink_data.get("dlink", "")
+                        # Cache sign/timestamp for subsequent files
+                        if dlink_data.get("sign"):
+                            cached_sign = dlink_data["sign"]
+                        if dlink_data.get("timestamp"):
+                            cached_timestamp = dlink_data["timestamp"]
                 except Exception as e:
                     print(f"[FOLDER] dlink fetch failed for {file_data['file_name']}: {e}")
 
