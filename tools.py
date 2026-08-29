@@ -159,11 +159,10 @@ async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id: int) -> bo
         except Exception as e:
             print(f"Error resolving invite link: {e}")
 
-    # 1. Check direct channel membership via Telethon permissions (Normal Mode)
+    # 1. Check direct channel membership via Telethon participant check
     try:
-        check = await bot.get_permissions(target_entity, user_id)
-        if check:
-            return True
+        await bot.get_participant(target_entity, user_id)
+        return True
     except Exception:
         pass
 
