@@ -131,21 +131,82 @@ def get_data(url: str):
     api_key = TERABOX_API_KEY
     
     try:
-        response = requests.get(api_url, params={"url": url, "apiKey": api_key, "from": "bot"}, timeout=20)
+        response = requests.get(api_url, params={"url": url, "apiKey": api_key, "from": "bot"}, timeout=25)
         if response.status_code != 200:
             return False
             
         res_data = response.json()
         if not res_data.get("list"):
             return False
-            
-        file_info = res_data["list"][0]
+
+        files = res_data["list"]
+
+        # Detect folder link: all files have status='folder_file' and empty dlink
+        is_folder = all(f.get("status") == "folder_file" for f in files)
+
+        if is_folder:
+            # Find first video file in folder
+            video_exts = {'mp4', 'mkv', 'webm', 'mov', 'avi', 'ts', 'wmv', '3gp', 'flv', 'mp3', 'aac', 'flac'}
+            target_file = None
+            for f in files:
+                ext = (f.get("name") or "").rsplit('.', 1)[-1].lower()
+                if ext in video_exts:
+                    target_file = f
+                    break
+            if not target_file:
+                target_file = files[0]  # fallback to first file
+
+            fs_id = target_file.get("fs_id")
+            share_id = res_data.get("listData_share_id")
+            uk = res_data.get("listData_uk")
+
+            # Fetch dlink via /dlink endpoint on Vercel API
+            if fs_id and share_id and uk:
+                try:
+                    dlink_res = requests.get(
+                        f"{TERABOX_API_BASE}/dlink",
+                        params={"apiKey": api_key, "fs_id": fs_id, "share_id": share_id, "uk": uk, "from": "bot"},
+                        timeout=15
+                    )
+                    if dlink_res.status_code == 200:
+                        dlink_data = dlink_res.json()
+                        dlink = dlink_data.get("dlink", "")
+                        if dlink:
+                            size_str = target_file.get("size", "0 B")
+                            size_bytes = parse_size_to_bytes(size_str)
+                            print(f"[FOLDER] Resolved dlink for: {target_file.get('name')}")
+                            return {
+                                "file_name": target_file.get("name") or "video.mp4",
+                                "link": dlink,
+                                "direct_link": dlink,
+                                "thumb": target_file.get("thumbnail", ""),
+                                "size": size_str,
+                                "sizebytes": size_bytes,
+                                "headers": res_data.get("downloadHeaders"),
+                                "is_folder": True,
+                                "total_files": len(files),
+                            }
+                except Exception as e:
+                    print(f"[FOLDER] Failed to fetch dlink via /dlink: {e}")
+
+            # Fallback: just return folder info with no download
+            return {
+                "file_name": target_file.get("name") or "folder",
+                "link": None,
+                "direct_link": None,
+                "thumb": target_file.get("thumbnail", ""),
+                "size": "0 B",
+                "sizebytes": 0,
+                "headers": res_data.get("downloadHeaders"),
+                "is_folder": True,
+                "total_files": len(files),
+            }
+
+        # Normal single/multi file (non-folder)
+        file_info = files[0]
         size_str = file_info.get("size", "0 B")
         size_bytes = parse_size_to_bytes(size_str)
-        
-        # Check if thumbnail is available
         thumb = file_info.get("thumbnail")
-        
         data = {
             "file_name": file_info.get("name") or "video.mp4",
             "link": file_info.get("dlink"),
@@ -160,3 +221,4 @@ def get_data(url: str):
     except Exception as e:
         print(f"Error calling Vercel API: {e}")
         return False
+
