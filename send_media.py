@@ -213,7 +213,7 @@ __Powered by @TeraboxDownloaderINDIA__
                             progress_callback=self.progress_bar,
                             buttons=[
                                 [
-                                    Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
+                                    Button.url("Channel 📢", url="https://t.me/TeraboxDownloaderINDIA"),
                                     Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
                                 ],
                             ],
@@ -273,7 +273,7 @@ __Powered by @TeraboxDownloaderINDIA__
                                     ),
                                 ],
                                 [
-                                    Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
+                                    Button.url("Channel 📢", url="https://t.me/TeraboxDownloaderINDIA"),
                                     Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
                                 ],
                             ],

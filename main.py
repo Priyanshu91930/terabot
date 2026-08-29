@@ -162,7 +162,7 @@ Let's make your video experience even better!
         parse_mode="markdown",
         buttons=[
             [
-                Button.url("Channel 📢", url="https://t.me/+cySPj7iDogFkMzc1"),
+                Button.url("Channel 📢", url="https://t.me/TeraboxDownloaderINDIA"),
                 Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
             ],
             [
