@@ -167,7 +167,8 @@ async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id: int) -> bo
     try:
         await bot.get_participant(target_entity, user_id)
         return True
-    except Exception:
+    except Exception as e:
+        print(f"DEBUG: get_participant failed for chat {target_entity} user {user_id}: {e}")
         pass
 
     # 2. Check pending join request in MongoDB (Join Request Mode)
