@@ -145,19 +145,23 @@ async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id: int) -> bo
     # If chat_id is a private join/invite link, resolve the underlying chat/channel entity
     if "t.me/" in str(chat_id) or "+" in str(chat_id):
         try:
-            hash_val = str(chat_id).split("+")[-1] if "+" in str(chat_id) else str(chat_id).split("joinchat/")[-1]
-            hash_val = hash_val.strip("/")
-            
-            from telethon.tl.functions.messages import CheckChatInviteRequest
-            from telethon.tl.types import ChatInviteAlready
-            
-            invite_info = await bot(CheckChatInviteRequest(hash_val))
-            if isinstance(invite_info, ChatInviteAlready):
-                target_entity = invite_info.chat
-            else:
-                target_entity = invite_info
+            target_entity = await bot.get_entity(chat_id)
         except Exception as e:
-            print(f"Error resolving invite link: {e}")
+            print(f"Error resolving invite link via get_entity: {e}")
+            try:
+                hash_val = str(chat_id).split("+")[-1] if "+" in str(chat_id) else str(chat_id).split("joinchat/")[-1]
+                hash_val = hash_val.strip("/")
+                
+                from telethon.tl.functions.messages import CheckChatInviteRequest
+                from telethon.tl.types import ChatInviteAlready
+                
+                invite_info = await bot(CheckChatInviteRequest(hash_val))
+                if isinstance(invite_info, ChatInviteAlready):
+                    target_entity = invite_info.chat
+                else:
+                    target_entity = invite_info
+            except Exception as ex:
+                print(f"Error resolving invite link: {ex}")
 
     # 1. Check direct channel membership via Telethon participant check
     try:
