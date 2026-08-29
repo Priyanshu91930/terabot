@@ -1,4 +1,5 @@
 import re
+import time
 from pprint import pp
 from urllib.parse import parse_qs, urlparse
 
@@ -145,43 +146,56 @@ def get_data(url: str):
         is_folder = all(f.get("status") == "folder_file" for f in files)
 
         if is_folder:
-            video_exts = {'mp4', 'mkv', 'webm', 'mov', 'avi', 'ts', 'wmv', '3gp', 'flv', 'mp3', 'aac', 'flac'}
             share_id = res_data.get("listData_share_id")
             uk = res_data.get("listData_uk")
             headers = res_data.get("downloadHeaders")
             download_headers = res_data.get("downloadHeaders")
 
-            # Fetch dlinks for ALL files in folder
             all_files = []
-            for f in files:
-                ext = (f.get("name") or "").rsplit('.', 1)[-1].lower()
+            for idx, f in enumerate(files):
                 fs_id = f.get("fs_id")
                 if not fs_id or not share_id or not uk:
                     continue
-                try:
-                    dlink_res = requests.get(
-                        f"{TERABOX_API_BASE}/dlink",
-                        params={"apiKey": api_key, "fs_id": fs_id, "share_id": share_id, "uk": uk, "from": "bot"},
-                        timeout=15
-                    )
-                    if dlink_res.status_code == 200:
-                        dlink_data = dlink_res.json()
-                        dlink = dlink_data.get("dlink", "")
-                        if dlink:
-                            size_str = f.get("size", "0 B")
-                            size_bytes = parse_size_to_bytes(size_str)
-                            all_files.append({
-                                "file_name": f.get("name") or "file",
-                                "link": dlink,
-                                "direct_link": dlink,
-                                "thumb": f.get("thumbnail", ""),
-                                "size": size_str,
-                                "sizebytes": size_bytes,
-                                "headers": download_headers,
-                            })
-                            print(f"[FOLDER] Resolved dlink for: {f.get('name')}")
-                except Exception as e:
-                    print(f"[FOLDER] Failed to fetch dlink for {f.get('name')}: {e}")
+
+                dlink = None
+                for attempt in range(3):
+                    try:
+                        dlink_res = requests.get(
+                            f"{TERABOX_API_BASE}/dlink",
+                            params={"apiKey": api_key, "fs_id": fs_id, "share_id": share_id, "uk": uk, "from": "bot"},
+                            timeout=15
+                        )
+                        if dlink_res.status_code == 200:
+                            try:
+                                dlink_data = dlink_res.json()
+                                dlink = dlink_data.get("dlink", "")
+                                if dlink:
+                                    break
+                            except ValueError:
+                                print(f"[FOLDER] HTML response (rate limited), retrying in 2s...")
+                                time.sleep(2)
+                                continue
+                    except Exception as e:
+                        print(f"[FOLDER] Attempt {attempt+1} failed for {f.get('name')}: {e}")
+                        time.sleep(1)
+
+                if dlink:
+                    size_str = f.get("size", "0 B")
+                    size_bytes = parse_size_to_bytes(size_str)
+                    all_files.append({
+                        "file_name": f.get("name") or "file",
+                        "link": dlink,
+                        "direct_link": dlink,
+                        "thumb": f.get("thumbnail", ""),
+                        "size": size_str,
+                        "sizebytes": size_bytes,
+                        "headers": download_headers,
+                    })
+                    print(f"[FOLDER] [{idx+1}/{len(files)}] Resolved: {f.get('name')}")
+                else:
+                    print(f"[FOLDER] [{idx+1}/{len(files)}] FAILED: {f.get('name')}")
+
+                time.sleep(0.5)
 
             if all_files:
                 return {"is_folder": True, "files": all_files, "total_files": len(all_files)}
