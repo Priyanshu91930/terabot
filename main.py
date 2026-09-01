@@ -418,80 +418,22 @@ async def process_download(m: Message, url: str, hm: Message):
     except Exception:
         await hm.edit("Sorry! API is dead or maybe your link is broken.")
         return
+
     if not data:
         await hm.edit("Sorry! API is dead or maybe your link is broken.")
         return
-    db.set(m.sender_id, time.monotonic(), ex=60)
 
-    # Folder: send all files one by one
-    if isinstance(data, dict) and data.get("is_folder") and data.get("files"):
-        files = data["files"]
-        total = len(files)
-        cached_sign = ""
-        cached_timestamp = ""
-        await hm.edit(f"📁 **Folder detected!** {total} files found. Starting download...\n\n__Powered by @TeraboxDownloaderINDIA__", parse_mode="markdown")
-
-        for i, file_data in enumerate(files, 1):
-            sizebytes = int(file_data.get("sizebytes", 0))
-            if sizebytes > 524288000 and m.sender_id not in ADMINS:
-                await m.reply(f"⏭️ Skipping **{file_data['file_name']}** (too big: {file_data['size']})")
-                continue
-            if sizebytes > 10737418240:
-                await m.reply(f"⏭️ Skipping **{file_data['file_name']}** (too big: {file_data['size']})")
-                continue
-
-            # Fetch dlink on-demand for this file only
-            dlink = file_data.get("direct_link") or ""
-            if not dlink and file_data.get("fs_id"):
-                try:
-                    dlink_params = {"apiKey": TERABOX_API_KEY, "fs_id": file_data["fs_id"],
-                                    "share_id": file_data.get("share_id"), "uk": file_data.get("uk"), "from": "bot"}
-                    if cached_sign and cached_timestamp:
-                        dlink_params["sign"] = cached_sign
-                        dlink_params["timestamp"] = cached_timestamp
-                    dlink_res = requests.get(
-                        f"{TERABOX_API_BASE}/dlink",
-                        params=dlink_params,
-                        timeout=15
-                    )
-                    if dlink_res.status_code == 200:
-                        dlink_data = dlink_res.json()
-                        dlink = dlink_data.get("dlink", "")
-                        # Cache sign/timestamp for subsequent files
-                        if dlink_data.get("sign"):
-                            cached_sign = dlink_data["sign"]
-                        if dlink_data.get("timestamp"):
-                            cached_timestamp = dlink_data["timestamp"]
-                except Exception as e:
-                    print(f"[FOLDER] dlink fetch failed for {file_data['file_name']}: {e}")
-
-            if not dlink:
-                await m.reply(f"⏭️ Skipping **{file_data['file_name']}** (no download link)")
-                continue
-
-            file_data["direct_link"] = dlink
-            file_data["link"] = dlink
-
-            status_msg = await m.reply(f"📥 **File {i}/{total}**: `{file_data['file_name']}`\n📦 Size: {file_data['size']}")
-            sender = VideoSender(
-                client=bot,
-                data=file_data,
-                message=m,
-                edit_message=status_msg,
-                url=url,
-            )
-            await sender.send_video()
-            if sender.task:
-                await sender.task
-            await asyncio.sleep(2)
-
-        await m.reply(f"✅ **All done!** {total} files processed.\n\n__Powered by @TeraboxDownloaderINDIA__", parse_mode="markdown")
+    if isinstance(data, dict) and (data.get("error_type") == "MULTIPLE_FILES" or data.get("is_folder")):
+        msg = data.get("error_message") or "This link contains multiple files or a folder. Please provide a link with a single file."
+        await hm.edit(f"⚠️ **Multiple Files / Folder Not Allowed**\n\n{msg}")
         return
 
+    db.set(m.sender_id, time.monotonic(), ex=60)
+
     # Single file
-    if int(data["sizebytes"]) > 524288000 and m.sender_id not in ADMINS:
+    if int(data.get("sizebytes", 0)) > 524288000 and m.sender_id not in ADMINS:
         await hm.edit(
-            f"Sorry! File is too big.\n**I can download only 500MB and this file is of {data['size']}.**\nRather you can download this file from the link below:\n{url}",
+            f"Sorry! File is too big.\n**I can download only 500MB and this file is of {data.get('size', 'N/A')}.**\nRather you can download this file from the link below:\n{url}",
             parse_mode="markdown",
         )
         return

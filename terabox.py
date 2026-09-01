@@ -133,92 +133,27 @@ def get_data(url: str):
     
     try:
         response = requests.get(api_url, params={"url": url, "apiKey": api_key, "from": "bot"}, timeout=25)
-        if response.status_code != 200:
-            return False
-            
-        res_data = response.json()
-        if not res_data.get("list"):
+        res_data = response.json() if response.content else {}
+
+        if response.status_code != 200 or not res_data.get("list"):
+            if res_data.get("code") == "MULTIPLE_FILES_NOT_ALLOWED" or (res_data.get("error") and "multiple files" in res_data.get("error").lower()):
+                return {
+                    "error_type": "MULTIPLE_FILES",
+                    "error_message": res_data.get("error") or "This link contains multiple files or a folder. Please provide a link with a single file."
+                }
             return False
 
         files = res_data["list"]
 
-        # Check if files have dlinks already (folder-expanded with dlinks resolved)
+        # Check if files have dlinks already
         has_dlinks = any(f.get("dlink") for f in files)
-
-        # Detect folder link: all files have status='folder_file' and NO dlinks
         is_folder = not has_dlinks and all(f.get("status") == "folder_file" for f in files)
 
-        if is_folder:
-            share_id = res_data.get("listData_share_id")
-            uk = res_data.get("listData_uk")
-            headers = res_data.get("downloadHeaders")
-            download_headers = res_data.get("downloadHeaders")
-
-            # Return all files WITHOUT dlinks - bot will fetch on-demand during upload
-            all_files = []
-            for f in files:
-                size_str = f.get("size", "0 B")
-                size_bytes = parse_size_to_bytes(size_str)
-                all_files.append({
-                    "file_name": f.get("name") or "file",
-                    "fs_id": f.get("fs_id"),
-                    "link": f.get("dlink") or "",
-                    "direct_link": f.get("dlink") or "",
-                    "thumb": f.get("thumbnail", ""),
-                    "size": size_str,
-                    "sizebytes": size_bytes,
-                    "headers": download_headers,
-                    "share_id": share_id,
-                    "uk": uk,
-                })
-
-            if all_files:
-                print(f"[FOLDER] Returning {len(all_files)} files (dlinks fetched on-demand)")
-                return {"is_folder": True, "files": all_files, "total_files": len(all_files)}
-
+        if is_folder or len(files) > 1:
             return {
-                "file_name": files[0].get("name") if files else "folder",
-                "link": None, "direct_link": None, "thumb": "",
-                "size": "0 B", "sizebytes": 0, "headers": headers,
-                "is_folder": True, "total_files": len(files),
+                "error_type": "MULTIPLE_FILES",
+                "error_message": "This link contains multiple files or a folder. Please provide a link with a single file."
             }
-
-            if all_files:
-                return {"is_folder": True, "files": all_files, "total_files": len(all_files)}
-
-            # Fallback: just return folder info with no download
-            return {
-                "file_name": files[0].get("name") if files else "folder",
-                "link": None,
-                "direct_link": None,
-                "thumb": "",
-                "size": "0 B",
-                "sizebytes": 0,
-                "headers": headers,
-                "is_folder": True,
-                "total_files": len(files),
-            }
-
-        # Normal single/multi file (non-folder)
-        # If multiple files with dlinks, return all of them
-        if len(files) > 1 and has_dlinks:
-            all_files = []
-            for fi in files:
-                dlink = fi.get("dlink") or ""
-                if not dlink:
-                    continue
-                all_files.append({
-                    "file_name": fi.get("name") or "file",
-                    "link": dlink,
-                    "direct_link": dlink,
-                    "thumb": fi.get("thumbnail") or fi.get("thumbs", {}).get("url3", ""),
-                    "size": fi.get("size", "0 B"),
-                    "sizebytes": parse_size_to_bytes(fi.get("size", "0 B")),
-                    "headers": res_data.get("downloadHeaders"),
-                })
-            if len(all_files) > 1:
-                print(f"[MULTI] Returning {len(all_files)} files with dlinks")
-                return {"is_folder": True, "files": all_files, "total_files": len(all_files)}
 
         file_info = files[0]
         size_str = file_info.get("size", "0 B")
