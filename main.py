@@ -534,6 +534,46 @@ async def get_message(m: Message):
         asyncio.create_task(run_task(task_payload))
 
 
+# ------------------ GROUP AUTO-REPLY HANDLER ------------------
+
+group_cooldowns = {}
+
+@bot.on(
+    events.NewMessage(
+        incoming=True,
+        outgoing=False,
+        func=lambda m: (m.is_group or m.is_channel) and m.text,
+    )
+)
+async def group_mention_handler(m: Message):
+    text_lower = m.text.lower()
+    keywords = ["terabox", "bot", "download", "tera", BOT_USERNAME.lower()]
+    
+    if any(kw in text_lower for kw in keywords):
+        chat_id = m.chat_id
+        now = time.time()
+        # Cooldown per group: reply at most once every 45 seconds per chat to avoid spam
+        if chat_id in group_cooldowns and (now - group_cooldowns[chat_id]) < 45:
+            return
+            
+        group_cooldowns[chat_id] = now
+        start_url = f"https://t.me/{BOT_USERNAME}?start=true"
+        reply_text = (
+            "Hey there! 👋 I am here to help you download **TeraBox** files!\n\n"
+            "Just click the button below to start me in PM and send your Terabox link! 🚀"
+        )
+        try:
+            await m.reply(
+                reply_text,
+                parse_mode="markdown",
+                buttons=[
+                    [Button.url("Start Bot in PM 🚀", url=start_url)]
+                ]
+            )
+        except Exception as e:
+            log.warning(f"Failed to send group auto-reply: {e}")
+
+
 # ------------------ START CLIENT ------------------
 
 print("Bot is starting...")
