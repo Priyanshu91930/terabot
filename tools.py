@@ -217,6 +217,8 @@ async def download_file(
     callback=None,
     headers=None,
 ) -> str | bool:
+    if not url or not isinstance(url, str) or not url.startswith(("http://", "https://")):
+        raise ValueError(f"Invalid download URL provided: '{url}'")
     try:
         if not headers:
             headers = {

@@ -154,29 +154,42 @@ __Powered by @TeraboxDownloaderINDIA__
     async def send_media(self, shorturl):
         path = Path(self.data["file_name"])
         if not os.path.exists(path):
+            direct_url = self.data.get("direct_link") or self.data.get("link")
+            fallback_url = self.data.get("link") or self.data.get("direct_link")
+            
+            if not direct_url or not isinstance(direct_url, str) or not direct_url.startswith(("http://", "https://")):
+                log.error(f"Invalid download link received: {direct_url}")
+                return await self.handle_failed_download()
+
+            download = None
             try:
                 download_task = asyncio.create_task(
                     download_file(
-                        self.data["direct_link"],
+                        direct_url,
                         self.data["file_name"],
                         self.progress_bar,
                         headers=self.data.get("headers"),
                     )
                 )
                 download = await asyncio.gather(download_task)
-            except:
-                await self.edit_message.edit("Failed to Download the media. trying again.")
-                try:
-                    download_task = asyncio.create_task(
-                            download_file(
-                                self.data["link"],
-                                self.data["file_name"],
-                                self.progress_bar,
-                                headers=self.data.get("headers"),
+            except Exception as e:
+                log.warning(f"Primary download attempt failed: {e}")
+                if fallback_url and fallback_url != direct_url and fallback_url.startswith(("http://", "https://")):
+                    await self.edit_message.edit("Failed to Download the media. trying again...")
+                    try:
+                        download_task = asyncio.create_task(
+                                download_file(
+                                    fallback_url,
+                                    self.data["file_name"],
+                                    self.progress_bar,
+                                    headers=self.data.get("headers"),
+                                )
                             )
-                        )
-                    download = await asyncio.gather(download_task)
-                except:
+                        download = await asyncio.gather(download_task)
+                    except Exception as ex:
+                        log.error(f"Fallback download attempt failed: {ex}")
+                        return await self.handle_failed_download()
+                else:
                     return await self.handle_failed_download()
         else:
             download = [path]
