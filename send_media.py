@@ -213,7 +213,7 @@ __Powered by @TeraboxDownloaderINDIA__
                     
                     # Temporarily set start time for the part progress bar
                     self.start_time = time.time()
-                    attributes, mime_type = utils.get_attributes(part)
+                    attributes, mime_type = utils.get_attributes(part, supports_streaming=not self.as_doc)
                     part_caption = f"{self.caption}\n\n📂 **Part {i+1} of {len(parts)}**"
                     
                     file = await asyncio.wait_for(
@@ -223,6 +223,9 @@ __Powered by @TeraboxDownloaderINDIA__
                             caption=part_caption,
                             reply_to=self.message.id,
                             force_document=self.as_doc,
+                            attributes=attributes if not self.as_doc else None,
+                            supports_streaming=not self.as_doc,
+                            thumb=self.thumbnail if not self.as_doc else None,
                             parse_mode="markdown",
                             mime_type=mime_type,
                             progress_callback=self.progress_bar,
@@ -268,6 +271,7 @@ __Powered by @TeraboxDownloaderINDIA__
                 )
                 attributes, mime_type = utils.get_attributes(
                     self.download,
+                    supports_streaming=not self.as_doc
                 )
                 with open(self.download, "rb") as f:
                     file = await asyncio.wait_for(
@@ -276,6 +280,9 @@ __Powered by @TeraboxDownloaderINDIA__
                             file=f,
                             caption=self.caption,
                             force_document=self.as_doc,
+                            attributes=attributes if not self.as_doc else None,
+                            supports_streaming=not self.as_doc,
+                            thumb=self.thumbnail if not self.as_doc else None,
                             reply_to=self.message.id,
                             parse_mode="markdown",
                             mime_type=mime_type,
