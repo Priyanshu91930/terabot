@@ -527,13 +527,15 @@ async def get_message(m: Message):
         msg = data.get("error_message") or "This link contains multiple files or a folder. Please provide a link with a single file."
         return await hm.edit(f"⚠️ **Multiple Files / Folder Not Allowed**\n\n{msg}")
 
+    import json
     shorturl = extract_code_from_url(url)
     if not shorturl:
         from uuid import uuid4
         shorturl = str(uuid4())[:10]
 
-    # Save original URL in Redis with 24 hour expiry so callback works across bot restarts
+    # Save original URL and parsed data in Redis with 24 hour expiry so callback works without duplicate API calls
     db.set(f"req_url_{shorturl}", url, ex=86400)
+    db.set(f"req_data_{shorturl}", json.dumps(data), ex=86400)
 
     file_name = data.get("file_name", "Unknown File")
     file_size = data.get("size", "N/A")
@@ -561,19 +563,35 @@ async def get_message(m: Message):
 @bot.on(events.CallbackQuery(pattern=r"^dl_(v|d)_(.+)"))
 async def download_format_callback(event):
     global is_processing, download_queue
+    import json
     match = event.pattern_match
     fmt = match.group(1)
     shorturl = match.group(2)
     as_doc = (fmt == "d")
 
-    # Fetch original URL from Redis or reconstruct from TeraBox shortcode
+    # Fetch original URL and cached file data from Redis
     raw_url = db.get(f"req_url_{shorturl}")
     if raw_url:
         url = raw_url.decode("utf-8") if isinstance(raw_url, bytes) else str(raw_url)
     else:
         url = f"https://1024terabox.com/s/{shorturl}"
 
+    data = None
+    raw_data = db.get(f"req_data_{shorturl}")
+    if raw_data:
+        try:
+            data = json.loads(raw_data.decode("utf-8") if isinstance(raw_data, bytes) else str(raw_data))
+        except Exception:
+            data = None
+
     hm = await event.get_message()
+    fmt_name = "Document" if as_doc else "Video"
+
+    # Immediately remove format selection buttons so user cannot double-click
+    try:
+        await hm.edit(f"🚀 **Starting download as {fmt_name}...**", buttons=None)
+    except Exception:
+        pass
     
     # Check fast-forward file cache first
     code = extract_code_from_url(url) or shorturl
@@ -588,15 +606,10 @@ async def download_format_callback(event):
                 if check:
                     return
 
-    fmt_name = "Document" if as_doc else "Video"
-    try:
-        await hm.edit(f"🚀 **Starting download as {fmt_name}...**")
-    except Exception:
-        pass
-
     task_payload = {
         "message": hm,
         "url": url,
+        "data": data,
         "edit_message": hm,
         "as_doc": as_doc,
     }
@@ -606,7 +619,8 @@ async def download_format_callback(event):
         position = len(download_queue)
         try:
             await hm.edit(
-                f"⏳ **Your download is in queue ({fmt_name}).**\n\nPosition: `#{position}`\n\nPlease wait, processing preceding files..."
+                f"⏳ **Your download is in queue ({fmt_name}).**\n\nPosition: `#{position}`\n\nPlease wait, processing preceding files...",
+                buttons=None
             )
         except Exception:
             pass
