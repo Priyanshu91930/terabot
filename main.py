@@ -527,15 +527,13 @@ async def get_message(m: Message):
         msg = data.get("error_message") or "This link contains multiple files or a folder. Please provide a link with a single file."
         return await hm.edit(f"⚠️ **Multiple Files / Folder Not Allowed**\n\n{msg}")
 
-    from uuid import uuid4
-    req_id = str(uuid4())[:8]
-    pending_download_requests[req_id] = {
-        "message": m,
-        "url": url,
-        "data": data,
-        "edit_message": hm,
-        "sender_id": m.sender_id,
-    }
+    shorturl = extract_code_from_url(url)
+    if not shorturl:
+        from uuid import uuid4
+        shorturl = str(uuid4())[:10]
+
+    # Save original URL in Redis with 24 hour expiry so callback works across bot restarts
+    db.set(f"req_url_{shorturl}", url, ex=86400)
 
     file_name = data.get("file_name", "Unknown File")
     file_size = data.get("size", "N/A")
@@ -553,52 +551,52 @@ async def get_message(m: Message):
         parse_mode="markdown",
         buttons=[
             [
-                Button.inline("🎬 Video Format", data=f"dl_video_{req_id}"),
-                Button.inline("📁 Document / File", data=f"dl_doc_{req_id}"),
+                Button.inline("🎬 Video Format", data=f"dl_v_{shorturl}"),
+                Button.inline("📁 Document / File", data=f"dl_d_{shorturl}"),
             ]
         ]
     )
 
 
-@bot.on(events.CallbackQuery(pattern=r"^dl_(video|doc)_(.+)"))
+@bot.on(events.CallbackQuery(pattern=r"^dl_(v|d)_(.+)"))
 async def download_format_callback(event):
-    global is_processing, download_queue, pending_download_requests
+    global is_processing, download_queue
     match = event.pattern_match
     fmt = match.group(1)
-    req_id = match.group(2)
+    shorturl = match.group(2)
+    as_doc = (fmt == "d")
 
-    req_payload = pending_download_requests.pop(req_id, None)
-    if not req_payload:
-        return await event.answer("This request has expired. Please send the link again.", alert=True)
+    # Fetch original URL from Redis or reconstruct from TeraBox shortcode
+    raw_url = db.get(f"req_url_{shorturl}")
+    if raw_url:
+        url = raw_url.decode("utf-8") if isinstance(raw_url, bytes) else str(raw_url)
+    else:
+        url = f"https://1024terabox.com/s/{shorturl}"
 
-    if event.sender_id != req_payload["sender_id"]:
-        return await event.answer("This button is not for you!", alert=True)
-
-    as_doc = (fmt == "doc")
-    m = req_payload["message"]
-    url = req_payload["url"]
-    data = req_payload["data"]
-    hm = req_payload["edit_message"]
-
-    shorturl = extract_code_from_url(url)
-    if shorturl:
-        fileid = db.get_key(shorturl)
+    hm = await event.get_message()
+    
+    # Check fast-forward file cache first
+    code = extract_code_from_url(url) or shorturl
+    if code:
+        fileid = db.get_key(code)
         if fileid:
             uid = db.get_key(f"mid_{fileid}")
             if uid:
                 check = await VideoSender.forward_file(
-                    file_id=fileid, message=m, client=bot, edit_message=hm, uid=uid, as_doc=as_doc
+                    file_id=fileid, message=hm, client=bot, edit_message=hm, uid=uid, as_doc=as_doc
                 )
                 if check:
                     return
 
     fmt_name = "Document" if as_doc else "Video"
-    await hm.edit(f"🚀 **Starting download as {fmt_name}...**")
+    try:
+        await hm.edit(f"🚀 **Starting download as {fmt_name}...**")
+    except Exception:
+        pass
 
     task_payload = {
-        "message": m,
+        "message": hm,
         "url": url,
-        "data": data,
         "edit_message": hm,
         "as_doc": as_doc,
     }
@@ -606,9 +604,12 @@ async def download_format_callback(event):
     if is_processing:
         download_queue.append(task_payload)
         position = len(download_queue)
-        await hm.edit(
-            f"⏳ **Your download is in queue ({fmt_name}).**\n\nPosition: `#{position}`\n\nPlease wait, processing preceding files..."
-        )
+        try:
+            await hm.edit(
+                f"⏳ **Your download is in queue ({fmt_name}).**\n\nPosition: `#{position}`\n\nPlease wait, processing preceding files..."
+            )
+        except Exception:
+            pass
     else:
         is_processing = True
         asyncio.create_task(run_task(task_payload))
