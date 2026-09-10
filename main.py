@@ -566,7 +566,16 @@ async def download_format_callback(event):
     import json
     match = event.pattern_match
     fmt = match.group(1)
+    if isinstance(fmt, bytes):
+        fmt = fmt.decode("utf-8")
+
     shorturl = match.group(2)
+    if isinstance(shorturl, bytes):
+        shorturl = shorturl.decode("utf-8")
+    shorturl = str(shorturl).strip()
+    if shorturl.startswith("b'") and shorturl.endswith("'"):
+        shorturl = shorturl[2:-1]
+
     as_doc = (fmt == "d")
 
     # Fetch original URL and cached file data from Redis
