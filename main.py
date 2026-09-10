@@ -367,16 +367,16 @@ async def handle_raw_join_request(event):
             {"$set": {"status": "pending", "createdAt": datetime.utcnow()}},
             upsert=True
         )
-        print(f"Recorded pending join request for user {user_id} in chat {chat_id}")
     except Exception as e:
         print(f"Error recording join request in Python: {e}")
 
 
 # ------------------ LINK HANDLER ------------------
 
-# Global Task Queue Variables
+# Global Task Queue & Pending Format Selection Variables
 download_queue = []
 is_processing = False
+pending_download_requests = {}
 
 async def trigger_next_in_queue():
     global is_processing, download_queue
@@ -390,8 +390,9 @@ async def trigger_next_in_queue():
     # Update positions of remaining items in queue
     for index, task in enumerate(download_queue):
         try:
+            fmt_name = "Document" if task.get("as_doc") else "Video"
             await task["edit_message"].edit(
-                f"⏳ **Your download is in queue.**\n\nPosition: `#{index + 1}`\n\nPlease wait, processing preceding files..."
+                f"⏳ **Your download is in queue ({fmt_name}).**\n\nPosition: `#{index + 1}`\n\nPlease wait, processing preceding files..."
             )
         except Exception:
             pass
@@ -403,21 +404,25 @@ async def run_task(task):
     m = task["message"]
     url = task["url"]
     hm = task["edit_message"]
+    data = task.get("data")
+    as_doc = task.get("as_doc", False)
     
     try:
-        await hm.edit("🚀 **Processing your request... Starting download.**")
-        await process_download(m, url, hm)
+        fmt_name = "Document" if as_doc else "Video"
+        await hm.edit(f"🚀 **Processing your request... Starting download as {fmt_name}.**")
+        await process_download(m, url, hm, data=data, as_doc=as_doc)
     except Exception as e:
         log.exception(f"Error running queue task: {e}")
     finally:
         await trigger_next_in_queue()
 
-async def process_download(m: Message, url: str, hm: Message):
-    try:
-        data = get_data(url)
-    except Exception:
-        await hm.edit("Sorry! API is dead or maybe your link is broken.")
-        return
+async def process_download(m: Message, url: str, hm: Message, data=None, as_doc: bool = False):
+    if not data:
+        try:
+            data = get_data(url)
+        except Exception:
+            await hm.edit("Sorry! API is dead or maybe your link is broken.")
+            return
 
     if not data:
         await hm.edit("Sorry! API is dead or maybe your link is broken.")
@@ -438,7 +443,7 @@ async def process_download(m: Message, url: str, hm: Message):
         )
         return
 
-    if int(data["sizebytes"]) > 10737418240 and m.sender_id in ADMINS:
+    if int(data.get("sizebytes", 0)) > 10737418240 and m.sender_id in ADMINS:
         await hm.edit(
             f"❌ **File Too Large**\n\nEven for admins, the limit is capped at **10.00 GB** to prevent VPS storage overload. This file is **{data['size']}**.",
             parse_mode="markdown"
@@ -451,6 +456,7 @@ async def process_download(m: Message, url: str, hm: Message):
         message=m,
         edit_message=hm,
         url=url,
+        as_doc=as_doc,
     )
     await sender.send_video()
     if sender.task:
@@ -467,12 +473,12 @@ async def process_download(m: Message, url: str, hm: Message):
     )
 )
 async def get_message(m: Message):
-    global is_processing, download_queue
+    global is_processing, download_queue, pending_download_requests
     url = get_urls_from_string(m.text)
     if not url:
         return await m.reply("Please enter a valid url.")
         
-    hm = await m.reply("Processing link...")
+    hm = await m.reply("Fetching link details...")
     
     # 1. Force Sub check for direct link sending (if enabled and user is not admin)
     if is_force_sub_enabled() and m.sender_id not in ADMINS:
@@ -509,6 +515,71 @@ async def get_message(m: Message):
                 "Your account is deactivated. send /gen to get activate it again."
             )
             
+    try:
+        data = get_data(url)
+    except Exception:
+        return await hm.edit("Sorry! API is dead or maybe your link is broken.")
+
+    if not data:
+        return await hm.edit("Sorry! API is dead or maybe your link is broken.")
+
+    if isinstance(data, dict) and (data.get("error_type") == "MULTIPLE_FILES" or data.get("is_folder")):
+        msg = data.get("error_message") or "This link contains multiple files or a folder. Please provide a link with a single file."
+        return await hm.edit(f"⚠️ **Multiple Files / Folder Not Allowed**\n\n{msg}")
+
+    from uuid import uuid4
+    req_id = str(uuid4())[:8]
+    pending_download_requests[req_id] = {
+        "message": m,
+        "url": url,
+        "data": data,
+        "edit_message": hm,
+        "sender_id": m.sender_id,
+    }
+
+    file_name = data.get("file_name", "Unknown File")
+    file_size = data.get("size", "N/A")
+
+    text = f"""
+📥 **File Details Found!**
+
+📁 **Name**: `{file_name}`
+📦 **Size**: `{file_size}`
+
+👇 **How would you like to receive your file?**
+"""
+    await hm.edit(
+        text,
+        parse_mode="markdown",
+        buttons=[
+            [
+                Button.inline("🎬 Video Format", data=f"dl_video_{req_id}"),
+                Button.inline("📁 Document / File", data=f"dl_doc_{req_id}"),
+            ]
+        ]
+    )
+
+
+@bot.on(events.CallbackQuery(pattern=r"^dl_(video|doc)_(.+)"))
+async def download_format_callback(event):
+    global is_processing, download_queue, pending_download_requests
+    match = event.pattern_match
+    fmt = match.group(1)
+    req_id = match.group(2)
+
+    req_payload = pending_download_requests.pop(req_id, None)
+    if not req_payload:
+        return await event.answer("This request has expired. Please send the link again.", alert=True)
+
+    if event.sender_id != req_payload["sender_id"]:
+        return await event.answer("This button is not for you!", alert=True)
+
+    as_doc = (fmt == "doc")
+    m = req_payload["message"]
+    url = req_payload["url"]
+    data = req_payload["data"]
+    hm = req_payload["edit_message"]
+
     shorturl = extract_code_from_url(url)
     if shorturl:
         fileid = db.get_key(shorturl)
@@ -516,18 +587,27 @@ async def get_message(m: Message):
             uid = db.get_key(f"mid_{fileid}")
             if uid:
                 check = await VideoSender.forward_file(
-                    file_id=fileid, message=m, client=bot, edit_message=hm, uid=uid
+                    file_id=fileid, message=m, client=bot, edit_message=hm, uid=uid, as_doc=as_doc
                 )
                 if check:
                     return
 
-    task_payload = {"message": m, "url": url, "edit_message": hm}
-    
+    fmt_name = "Document" if as_doc else "Video"
+    await hm.edit(f"🚀 **Starting download as {fmt_name}...**")
+
+    task_payload = {
+        "message": m,
+        "url": url,
+        "data": data,
+        "edit_message": hm,
+        "as_doc": as_doc,
+    }
+
     if is_processing:
         download_queue.append(task_payload)
         position = len(download_queue)
         await hm.edit(
-            f"⏳ **Your download is in queue.**\n\nPosition: `#{position}`\n\nPlease wait, processing preceding files..."
+            f"⏳ **Your download is in queue ({fmt_name}).**\n\nPosition: `#{position}`\n\nPlease wait, processing preceding files..."
         )
     else:
         is_processing = True

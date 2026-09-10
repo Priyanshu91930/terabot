@@ -79,12 +79,14 @@ class VideoSender:
         edit_message: Message,
         url: str,
         data,
+        as_doc: bool = False,
     ):
         self.client = client
         self.data = data
         self.url = url
         self.edit_message = edit_message
         self.message = message
+        self.as_doc = as_doc
         self.uuid = str(uuid4())
         self.stop_sending = False
         self.thumbnail = self.get_thumbnail()
@@ -220,7 +222,7 @@ __Powered by @TeraboxDownloaderINDIA__
                             file=part,
                             caption=part_caption,
                             reply_to=self.message.id,
-                            force_document=True,
+                            force_document=self.as_doc,
                             parse_mode="markdown",
                             mime_type=mime_type,
                             progress_callback=self.progress_bar,
@@ -273,7 +275,7 @@ __Powered by @TeraboxDownloaderINDIA__
                             self.message.chat.id,
                             file=f,
                             caption=self.caption,
-                            force_document=True,
+                            force_document=self.as_doc,
                             reply_to=self.message.id,
                             parse_mode="markdown",
                             mime_type=mime_type,
@@ -432,6 +434,7 @@ __Powered by @TeraboxDownloaderINDIA__
         message: Message,
         edit_message: UpdateEditMessage = None,
         uid: str = None,
+        as_doc: bool = False,
     ):
         if edit_message:
             try:
@@ -454,7 +457,7 @@ __Powered by @TeraboxDownloaderINDIA__
                 # entity=msg.entities,
                 background=True,
                 reply_to=message.id,
-                force_document=False,
+                force_document=as_doc,
                 buttons=[
                     [
                         Button.url(
