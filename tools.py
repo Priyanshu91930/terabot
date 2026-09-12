@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 from PIL import Image
+from telethon import TelegramClient
 from config import BOT_USERNAME, SHORTLINK_API_KEY, SHORTLINK_API_URL
 from redis_db import db
 
