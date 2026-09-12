@@ -2,9 +2,11 @@ import asyncio
 import logging
 import time
 import requests
+from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 import os
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
@@ -565,7 +567,8 @@ async def run_task(task):
     
     try:
         fmt_name = "Document" if as_doc else "Video"
-        await hm.edit(f"🚀 **Processing your request... Starting download as {fmt_name}.**")
+        with suppress(Exception):
+            await hm.edit(f"🚀 **Processing your request... Starting download as {fmt_name}.**")
         await process_download(m, url, hm, data=data, as_doc=as_doc, user_id=user_id)
     except Exception as e:
         log.exception(f"Error running queue task: {e}")
@@ -577,16 +580,19 @@ async def process_download(m: Message, url: str, hm: Message, data=None, as_doc:
         try:
             data = get_data(url)
         except Exception:
-            await hm.edit("Sorry! API is dead or maybe your link is broken.")
+            with suppress(Exception):
+                await hm.edit("Sorry! API is dead or maybe your link is broken.")
             return
 
     if not data:
-        await hm.edit("Sorry! API is dead or maybe your link is broken.")
+        with suppress(Exception):
+            await hm.edit("Sorry! API is dead or maybe your link is broken.")
         return
 
     if isinstance(data, dict) and (data.get("error_type") == "MULTIPLE_FILES" or data.get("is_folder")):
         msg = data.get("error_message") or "This link contains multiple files or a folder. Please provide a link with a single file."
-        await hm.edit(f"⚠️ **Multiple Files / Folder Not Allowed**\n\n{msg}")
+        with suppress(Exception):
+            await hm.edit(f"⚠️ **Multiple Files / Folder Not Allowed**\n\n{msg}")
         return
 
     effective_user_id = user_id or (m.sender_id if hasattr(m, "sender_id") else None)
@@ -595,17 +601,19 @@ async def process_download(m: Message, url: str, hm: Message, data=None, as_doc:
 
     # Single file limits
     if int(data.get("sizebytes", 0)) > 524288000 and effective_user_id not in ADMINS:
-        await hm.edit(
-            f"Sorry! File is too big.\n**I can download only 500MB and this file is of {data.get('size', 'N/A')}.**\nRather you can download this file from the link below:\n{url}",
-            parse_mode="markdown",
-        )
+        with suppress(Exception):
+            await hm.edit(
+                f"Sorry! File is too big.\n**I can download only 500MB and this file is of {data.get('size', 'N/A')}.**\nRather you can download this file from the link below:\n{url}",
+                parse_mode="markdown",
+            )
         return
 
     if int(data.get("sizebytes", 0)) > 10737418240 and effective_user_id in ADMINS:
-        await hm.edit(
-            f"❌ **File Too Large**\n\nEven for admins, the limit is capped at **10.00 GB** to prevent VPS storage overload. This file is **{data['size']}**.",
-            parse_mode="markdown"
-        )
+        with suppress(Exception):
+            await hm.edit(
+                f"❌ **File Too Large**\n\nEven for admins, the limit is capped at **10.00 GB** to prevent VPS storage overload. This file is **{data['size']}**.",
+                parse_mode="markdown"
+            )
         return
 
     sender = VideoSender(
