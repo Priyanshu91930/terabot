@@ -316,12 +316,14 @@ def generate_shortenedUrl(
     sender_id: int,
 ):
     try:
+        import time
         uid = str(uuid.uuid4())
+        created_at = time.time()
         api_key = SHORTLINK_API_KEY
         # If API key is empty, bypass ad shortener and return direct activation link
         if not api_key:
             url = f"https://t.me/{BOT_USERNAME}?start=token_{uid}"
-            db.set(f"token_{uid}", f"{sender_id}|{url}", ex=21600)
+            db.set(f"token_{uid}", f"{sender_id}|{url}|{created_at}", ex=21600)
             return url
 
         endpoints = [SHORTLINK_API_URL, "https://vplink.in/api", "https://vplinks.in/api"]
@@ -342,14 +344,14 @@ def generate_shortenedUrl(
                     data_json = data.json()
                     if data_json.get("status") == "success" and data_json.get("shortenedUrl"):
                         url = data_json.get("shortenedUrl")
-                        db.set(f"token_{uid}", f"{sender_id}|{url}", ex=21600)
+                        db.set(f"token_{uid}", f"{sender_id}|{url}|{created_at}", ex=21600)
                         return url
             except Exception as api_err:
                 print(f"Ad shortener API error for {api_endpoint}: {api_err}")
 
         # Fallback to direct activation link
         url = f"https://t.me/{BOT_USERNAME}?start=token_{uid}"
-        db.set(f"token_{uid}", f"{sender_id}|{url}", ex=21600)
+        db.set(f"token_{uid}", f"{sender_id}|{url}|{created_at}", ex=21600)
         return url
     except Exception as e:
         print(f"Error in generate_shortenedUrl: {e}")

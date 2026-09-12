@@ -360,15 +360,36 @@ Your session will expire in {t.to_humanreadable()}."""
     if_token_avl = db.get(f"token_{uuid}")
     if not if_token_avl:
         return await generate_token(m)
-    sender_id, shortenedUrl = if_token_avl.split("|")
+    token_data = if_token_avl.split("|")
+    sender_id = token_data[0]
+    shortenedUrl = token_data[1]
+    created_at = float(token_data[2]) if len(token_data) > 2 else 0.0
+
     if m.sender_id != int(sender_id):
         return await m.reply(
             "Your token is invalid. Please try again.\n Hit /gen to get a new token."
         )
+
+    # ANTI-BYPASS TIMER CHECK
+    import config
+    min_time = getattr(config, "MIN_SHORTLINK_TIME", 15)
+    if created_at > 0 and m.sender_id not in ADMINS:
+        elapsed = time.time() - created_at
+        if elapsed < min_time:
+            db.delete(f"token_{uuid}")
+            new_shortened_url = generate_shortenedUrl(m.sender_id)
+            return await m.reply(
+                "❌ **Shortlink Bypass Detected!**\n\n"
+                f"Aapne shortlink ko bypass karne ki koshish ki hai (ya ultra-fast bypasser tool use kiya hai).\n"
+                f"Shortlink complete karne me kam se kam **{min_time} seconds** ka samay lagta hai, par aapne ise sirf `{int(elapsed)}s` me complete karne ki koshish ki.\n\n"
+                "⚠️ Kripya niche diye gaye button se naya link le kar bina bypasser ke shortlink complete karein.",
+                buttons=[Button.url("Click Here To Refresh Token", url=new_shortened_url or "")]
+            )
+
     set_user_active = db.set(f"active_{m.sender_id}", time.time(), ex=3600)
     db.delete(f"token_{uuid}")
     if set_user_active:
-        return await m.reply("Your account is active. It will expire after 1 hour.")
+        return await m.reply("✅ **Account Activated!**\n\nYour session is active for 1 hour. Send your Terabox links to download!")
 
 
 @bot.on(
