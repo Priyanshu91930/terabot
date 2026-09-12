@@ -428,6 +428,86 @@ async def handle_raw_join_request(event):
         print(f"Error recording join request in Python: {e}")
 
 
+# ------------------ ADMIN CUSTOM THUMBNAIL HANDLERS ------------------
+
+@bot.on(
+    events.NewMessage(
+        pattern=r"^/(setthumb|set_thumb)",
+        incoming=True,
+        outgoing=False,
+        func=lambda x: x.is_private,
+    )
+)
+async def set_custom_thumbnail(m: Message):
+    if m.sender_id not in ADMINS:
+        return await m.reply("⚠️ **Permission Denied**: Only bot admins can set a custom thumbnail.")
+
+    reply_msg = await m.get_reply_message()
+    target_msg = reply_msg if reply_msg and reply_msg.photo else (m if m.photo else None)
+
+    if not target_msg:
+        return await m.reply(
+            "🖼️ **How to set Custom Thumbnail:**\n\n"
+            "1. Send a photo to the bot with caption `/setthumb`\n"
+            "**OR**\n"
+            "2. Reply to any photo with `/setthumb`"
+        )
+
+    hm = await m.reply("⏳ **Saving custom thumbnail...**")
+    try:
+        admin_thumb_path = os.path.join(os.getcwd(), "admin_thumb.jpg")
+        await bot.download_media(target_msg.photo, file=admin_thumb_path)
+        await hm.edit("✅ **Custom Thumbnail Saved Successfully!**\n\nAll future video and document downloads will use this thumbnail.")
+    except Exception as e:
+        log.error(f"Error saving custom thumbnail: {e}")
+        await hm.edit(f"❌ **Failed to save thumbnail**: `{e}`")
+
+
+@bot.on(
+    events.NewMessage(
+        pattern=r"^/(delthumb|removethumb)",
+        incoming=True,
+        outgoing=False,
+        func=lambda x: x.is_private,
+    )
+)
+async def delete_custom_thumbnail(m: Message):
+    if m.sender_id not in ADMINS:
+        return await m.reply("⚠️ **Permission Denied**: Only bot admins can delete custom thumbnails.")
+
+    admin_thumb_path = os.path.join(os.getcwd(), "admin_thumb.jpg")
+    if os.path.exists(admin_thumb_path):
+        try:
+            os.remove(admin_thumb_path)
+            await m.reply("✅ **Custom Thumbnail Deleted.**\n\nBot will now use original Terabox thumbnails.")
+        except Exception as e:
+            await m.reply(f"❌ **Error deleting thumbnail**: `{e}`")
+    else:
+        await m.reply("ℹ️ **No custom thumbnail is currently set.**")
+
+
+@bot.on(
+    events.NewMessage(
+        pattern=r"^/(showthumb|viewthumb)",
+        incoming=True,
+        outgoing=False,
+        func=lambda x: x.is_private,
+    )
+)
+async def show_custom_thumbnail(m: Message):
+    if m.sender_id not in ADMINS:
+        return await m.reply("⚠️ **Permission Denied**: Only bot admins can view custom thumbnail settings.")
+
+    admin_thumb_path = os.path.join(os.getcwd(), "admin_thumb.jpg")
+    if os.path.exists(admin_thumb_path):
+        await m.reply(
+            "🖼️ **Current Admin Custom Thumbnail:**",
+            file=admin_thumb_path,
+        )
+    else:
+        await m.reply("ℹ️ **No custom thumbnail is currently set.**\n\nSend a photo with `/setthumb` to set one.")
+
+
 # ------------------ LINK HANDLER ------------------
 
 # Global Task Queue & Pending Format Selection Variables
@@ -463,17 +543,18 @@ async def run_task(task):
     hm = task["edit_message"]
     data = task.get("data")
     as_doc = task.get("as_doc", False)
+    user_id = task.get("user_id")
     
     try:
         fmt_name = "Document" if as_doc else "Video"
         await hm.edit(f"🚀 **Processing your request... Starting download as {fmt_name}.**")
-        await process_download(m, url, hm, data=data, as_doc=as_doc)
+        await process_download(m, url, hm, data=data, as_doc=as_doc, user_id=user_id)
     except Exception as e:
         log.exception(f"Error running queue task: {e}")
     finally:
         await trigger_next_in_queue()
 
-async def process_download(m: Message, url: str, hm: Message, data=None, as_doc: bool = False):
+async def process_download(m: Message, url: str, hm: Message, data=None, as_doc: bool = False, user_id: int = None):
     if not data:
         try:
             data = get_data(url)
@@ -490,17 +571,19 @@ async def process_download(m: Message, url: str, hm: Message, data=None, as_doc:
         await hm.edit(f"⚠️ **Multiple Files / Folder Not Allowed**\n\n{msg}")
         return
 
-    db.set(m.sender_id, time.monotonic(), ex=60)
+    effective_user_id = user_id or (m.sender_id if hasattr(m, "sender_id") else None)
+    if effective_user_id:
+        db.set(effective_user_id, time.monotonic(), ex=60)
 
-    # Single file
-    if int(data.get("sizebytes", 0)) > 524288000 and m.sender_id not in ADMINS:
+    # Single file limits
+    if int(data.get("sizebytes", 0)) > 524288000 and effective_user_id not in ADMINS:
         await hm.edit(
             f"Sorry! File is too big.\n**I can download only 500MB and this file is of {data.get('size', 'N/A')}.**\nRather you can download this file from the link below:\n{url}",
             parse_mode="markdown",
         )
         return
 
-    if int(data.get("sizebytes", 0)) > 10737418240 and m.sender_id in ADMINS:
+    if int(data.get("sizebytes", 0)) > 10737418240 and effective_user_id in ADMINS:
         await hm.edit(
             f"❌ **File Too Large**\n\nEven for admins, the limit is capped at **10.00 GB** to prevent VPS storage overload. This file is **{data['size']}**.",
             parse_mode="markdown"
@@ -514,6 +597,7 @@ async def process_download(m: Message, url: str, hm: Message, data=None, as_doc:
         edit_message=hm,
         url=url,
         as_doc=as_doc,
+        user_id=effective_user_id,
     )
     await sender.send_video()
     if sender.task:
@@ -634,6 +718,7 @@ async def download_format_callback(event):
         shorturl = shorturl[2:-1]
 
     as_doc = (fmt == "d")
+    user_id = event.sender_id
 
     # Fetch original URL and cached file data from Redis
     raw_url = db.get(f"req_url_{shorturl}")
@@ -658,22 +743,23 @@ async def download_format_callback(event):
         await hm.edit(f"🚀 **Starting download as {fmt_name}...**", buttons=None)
     except Exception:
         pass
-    
+
     # Check fast-forward file cache first
     code = extract_code_from_url(url) or shorturl
     if code:
         fileid = db.get_key(code)
         if fileid:
-            uid = db.get_key(f"mid_{fileid}")
-            if uid:
-                check = await VideoSender.forward_file(
-                    file_id=fileid, message=hm, client=bot, edit_message=hm, uid=uid, as_doc=as_doc
-                )
-                if check:
-                    return
+            first_id = fileid.split(",")[0] if (isinstance(fileid, str) and "," in fileid) else fileid
+            uid = db.get_key(f"mid_{fileid}") or db.get_key(f"mid_{first_id}") or code
+            check = await VideoSender.forward_file(
+                file_id=fileid, message=hm, client=bot, edit_message=hm, uid=uid, as_doc=as_doc
+            )
+            if check:
+                return
 
     task_payload = {
         "message": hm,
+        "user_id": user_id,
         "url": url,
         "data": data,
         "edit_message": hm,

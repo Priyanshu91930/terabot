@@ -80,6 +80,7 @@ class VideoSender:
         url: str,
         data,
         as_doc: bool = False,
+        user_id: int = None,
     ):
         self.client = client
         self.data = data
@@ -87,6 +88,7 @@ class VideoSender:
         self.edit_message = edit_message
         self.message = message
         self.as_doc = as_doc
+        self.user_id = user_id or (message.sender_id if hasattr(message, "sender_id") else None)
         self.uuid = str(uuid4())
         self.stop_sending = False
         self.thumbnail = self.get_thumbnail()
@@ -201,6 +203,7 @@ __Powered by @TeraboxDownloaderINDIA__
         file_size = os.path.getsize(self.download)
         max_size = 2000000000 # 2GB
         
+        files_to_save = []
         try:
             if file_size > max_size:
                 await self.edit_message.edit(f"📦 Large file detected ({get_formatted_size(file_size)}).\nSplitting into parts for Telegram Bot 2GB limit...")
@@ -211,11 +214,24 @@ __Powered by @TeraboxDownloaderINDIA__
                     part_name = os.path.basename(part)
                     await self.edit_message.edit(f"📤 Uploading part {i+1} of {len(parts)}: `{part_name}`...")
                     
-                    # Temporarily set start time for the part progress bar
                     self.start_time = time.time()
-                    attributes, mime_type = utils.get_attributes(part, supports_streaming=not self.as_doc)
+                    if not self.as_doc:
+                        attributes, mime_type = utils.get_attributes(part, supports_streaming=True)
+                        from telethon.tl.types import DocumentAttributeVideo
+                        has_video_attr = any(isinstance(a, DocumentAttributeVideo) for a in (attributes or []))
+                        if not has_video_attr:
+                            if attributes is None:
+                                attributes = []
+                            attributes.append(DocumentAttributeVideo(duration=0, w=0, h=0, supports_streaming=True))
+                    else:
+                        attributes = None
+                        mime_type = None
+
                     part_caption = f"{self.caption}\n\n📂 **Part {i+1} of {len(parts)}**"
                     
+                    if self.thumbnail and hasattr(self.thumbnail, 'seek'):
+                        self.thumbnail.seek(0)
+
                     file = await asyncio.wait_for(
                         self.client.send_file(
                             self.message.chat.id,
@@ -225,7 +241,7 @@ __Powered by @TeraboxDownloaderINDIA__
                             force_document=self.as_doc,
                             attributes=attributes if not self.as_doc else None,
                             supports_streaming=not self.as_doc,
-                            thumb=self.thumbnail if not self.as_doc else None,
+                            thumb=self.thumbnail,
                             parse_mode="markdown",
                             mime_type=mime_type,
                             progress_callback=self.progress_bar,
@@ -261,18 +277,28 @@ __Powered by @TeraboxDownloaderINDIA__
                     await self.edit_message.delete()
                 except:
                     pass
-                if sent_files:
-                    file = sent_files[0] # Set first part for mapping
+                files_to_save = sent_files
             else:
                 log.info(f"[UPLOAD] Starting upload for: {self.data['file_name']} ({os.path.getsize(self.download)} bytes)")
                 await self.edit_message.edit(
                     f"📤 **Uploading...**\n\n📁 `{self.data['file_name']}`\n📦 `{get_formatted_size(os.path.getsize(self.download))}`\n\n__Powered by @TeraboxDownloaderINDIA__",
                     parse_mode="markdown",
                 )
-                attributes, mime_type = utils.get_attributes(
-                    self.download,
-                    supports_streaming=not self.as_doc
-                )
+                if not self.as_doc:
+                    attributes, mime_type = utils.get_attributes(self.download, supports_streaming=True)
+                    from telethon.tl.types import DocumentAttributeVideo
+                    has_video_attr = any(isinstance(a, DocumentAttributeVideo) for a in (attributes or []))
+                    if not has_video_attr:
+                        if attributes is None:
+                            attributes = []
+                        attributes.append(DocumentAttributeVideo(duration=0, w=0, h=0, supports_streaming=True))
+                else:
+                    attributes = None
+                    mime_type = None
+
+                if self.thumbnail and hasattr(self.thumbnail, 'seek'):
+                    self.thumbnail.seek(0)
+
                 with open(self.download, "rb") as f:
                     file = await asyncio.wait_for(
                         self.client.send_file(
@@ -282,7 +308,7 @@ __Powered by @TeraboxDownloaderINDIA__
                             force_document=self.as_doc,
                             attributes=attributes if not self.as_doc else None,
                             supports_streaming=not self.as_doc,
-                            thumb=self.thumbnail if not self.as_doc else None,
+                            thumb=self.thumbnail,
                             reply_to=self.message.id,
                             parse_mode="markdown",
                             mime_type=mime_type,
@@ -311,8 +337,9 @@ __Powered by @TeraboxDownloaderINDIA__
                 except Exception:
                     pass
                 log.info(f"[UPLOAD] send_file SUCCESS! File delivered to user.")
+                files_to_save = [file]
         except asyncio.TimeoutError:
-            log.error(f"[UPLOAD] send_file TIMEOUT after 900s for: {self.data['file_name']}")
+            log.error(f"[UPLOAD] send_file TIMEOUT after 3600s for: {self.data['file_name']}")
             self.client.remove_event_handler(
                 self.stop, events.CallbackQuery(pattern=f"^stop{self.uuid}")
             )
@@ -341,7 +368,8 @@ __Powered by @TeraboxDownloaderINDIA__
                 pass
             return await self.handle_failed_download()
 
-        await self.save_forward_file(file, shorturl)
+        if files_to_save:
+            await self.save_forward_file(files_to_save, shorturl)
 
     async def handle_failed_download(self):
         try:
@@ -357,24 +385,35 @@ __Powered by @TeraboxDownloaderINDIA__
                 f"Sorry! Download Failed but you can download it from [here]({self.data['direct_link']}) or [here]({self.data['link']}).",
                 parse_mode="markdown",
                 buttons=[Button.url("Download", data=self.data["direct_link"])],
-                
             )
         except Exception:
             pass
 
-    async def save_forward_file(self, file, shorturl):
-        forwarded_message = await self.client.forward_messages(
+    async def save_forward_file(self, files, shorturl):
+        if not isinstance(files, list):
+            files = [files]
+
+        forwarded_messages = await self.client.forward_messages(
             PRIVATE_CHAT_ID,
-            [file],
+            files,
             from_peer=self.message.chat.id,
             with_my_score=True,
             background=True,
         )
-        if forwarded_message[0].id:
-            db.set_key(self.uuid, forwarded_message[0].id)
-            db.set_key(f"mid_{forwarded_message[0].id}", self.uuid)
+
+        msg_ids = [m.id for m in forwarded_messages if m and hasattr(m, "id")]
+        if msg_ids:
+            if len(msg_ids) == 1:
+                val = str(msg_ids[0])
+            else:
+                val = ",".join(str(i) for i in msg_ids)
+
+            db.set_key(self.uuid, val)
+            db.set_key(f"mid_{val}", self.uuid)
+            db.set_key(f"mid_{msg_ids[0]}", self.uuid)
             if shorturl:
-                db.set_key(shorturl, forwarded_message[0].id)
+                db.set_key(shorturl, val)
+
         self.client.remove_event_handler(
             self.stop, events.CallbackQuery(pattern=f"^stop{self.uuid}")
         )
@@ -390,13 +429,11 @@ __Powered by @TeraboxDownloaderINDIA__
             os.unlink(self.download)
         except Exception:
             pass
-        db.set(self.message.sender_id, time.monotonic(), ex=60)
-        # await self.forward_file(
-        #     self.client, forwarded_message[0].id, self.message, self.edit_message
-        # )
+        if self.user_id:
+            db.set(self.user_id, time.monotonic(), ex=60)
 
     async def send_video(self):
-        self.thumbnail = download_image_to_bytesio(self.data["thumb"], "thumbnail.png")
+        self.thumbnail = self.get_thumbnail()
         shorturl = extract_code_from_url(self.url)
         if not shorturl:
             return await self.edit_message.edit("Seems like your link is invalid.")
@@ -406,7 +443,13 @@ __Powered by @TeraboxDownloaderINDIA__
                 await self.edit_message.delete()
         except Exception as e:
             pass
-        db.set(self.message.sender_id, time.monotonic(), ex=60)
+
+        if self.user_id:
+            db.set(self.user_id, time.monotonic(), ex=60)
+
+        if self.thumbnail and hasattr(self.thumbnail, "seek"):
+            self.thumbnail.seek(0)
+
         self.edit_message = await self.message.reply(
             self.caption2, file=self.thumbnail, parse_mode="markdown"
         )
@@ -432,12 +475,26 @@ __Powered by @TeraboxDownloaderINDIA__
             pass
 
     def get_thumbnail(self):
-        return download_image_to_bytesio(self.data["thumb"], "thumbnail.png")
+        from io import BytesIO
+        admin_thumb_path = os.path.join(os.getcwd(), "admin_thumb.jpg")
+        if os.path.exists(admin_thumb_path):
+            try:
+                with open(admin_thumb_path, "rb") as f:
+                    content = BytesIO(f.read())
+                    content.name = "thumbnail.jpg"
+                    return content
+            except Exception as e:
+                log.error(f"Error reading admin custom thumbnail: {e}")
+
+        thumb_url = self.data.get("thumb") if isinstance(self.data, dict) else None
+        if thumb_url:
+            return download_image_to_bytesio(thumb_url, "thumbnail.png")
+        return None
 
     @staticmethod
     async def forward_file(
         client: TelegramClient,
-        file_id: int,
+        file_id: int | str,
         message: Message,
         edit_message: UpdateEditMessage = None,
         uid: str = None,
@@ -448,43 +505,70 @@ __Powered by @TeraboxDownloaderINDIA__
                 await edit_message.delete()
             except Exception:
                 pass
-        result = await client(
-            GetMessagesRequest(channel=PRIVATE_CHAT_ID, id=[int(file_id)])
-        )
-        msg: Message = result.messages[0] if result and result.messages else None
-        if not msg:
-            return False
-        media: Document = (
-            msg.media.document if hasattr(msg, "media") and msg.media.document else None
-        )
+
+        if isinstance(file_id, (list, tuple)):
+            ids = [int(i) for i in file_id]
+        elif isinstance(file_id, str) and "," in file_id:
+            ids = [int(i.strip()) for i in file_id.split(",") if i.strip()]
+        else:
+            try:
+                ids = [int(file_id)]
+            except Exception:
+                return False
+
         try:
-            await message.reply(
-                message=msg.message,
-                file=media,
-                # entity=msg.entities,
-                background=True,
-                reply_to=message.id,
-                force_document=as_doc,
-                buttons=[
-                    [
-                        Button.url(
-                            "Direct Link",
-                            url=f"https://{BOT_USERNAME}.t.me?start={uid}",
-                        ),
-                    ],
-                    # [
-                    #     Button.url("Channel ", url="https://t.me/RoldexVerse"),
-                    #     Button.url("Group ", url="https://t.me/RoldexVerseChats"),
-                    # ],
-                ],
-                parse_mode="markdown",
+            result = await client(
+                GetMessagesRequest(channel=PRIVATE_CHAT_ID, id=ids)
             )
-            db.set(message.sender_id, time.monotonic(), ex=60)
-            db.incr(
-                f"check_{message.sender_id}",
-                1,
-            )
-            return True
-        except Exception:
+        except Exception as e:
+            log.error(f"GetMessagesRequest failed: {e}")
             return False
+
+        if not result or not result.messages:
+            return False
+
+        msg_map = {m.id: m for m in result.messages if m and hasattr(m, "id") and hasattr(m, "media") and m.media}
+        ordered_messages = [msg_map[i] for i in ids if i in msg_map]
+
+        if not ordered_messages:
+            return False
+
+        sender_id = message.sender_id if hasattr(message, "sender_id") else None
+
+        success_count = 0
+        for idx, msg in enumerate(ordered_messages):
+            media = msg.media.document if hasattr(msg.media, "document") and msg.media.document else msg.media
+            caption = msg.message or ""
+
+            try:
+                await message.reply(
+                    message=caption,
+                    file=media,
+                    background=True,
+                    reply_to=message.id if hasattr(message, "id") else None,
+                    force_document=as_doc,
+                    buttons=[
+                        [
+                            Button.url(
+                                "Direct Link",
+                                url=f"https://{BOT_USERNAME}.t.me?start={uid or ''}",
+                            ),
+                        ],
+                        [
+                            Button.url("Channel 📢", url="https://t.me/TeraboxDownloaderINDIA"),
+                            Button.url("Group 💬", url="https://t.me/+L7tcuoCsTaMxZWVl"),
+                        ],
+                    ],
+                    parse_mode="markdown",
+                )
+                success_count += 1
+            except Exception as e:
+                log.error(f"Error forwarding batch message part {idx+1}: {e}")
+
+        if success_count > 0:
+            if sender_id:
+                db.set(sender_id, time.monotonic(), ex=60)
+                db.incr(f"check_{sender_id}", 1)
+            return True
+        return False
 
