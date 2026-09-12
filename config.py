@@ -35,7 +35,6 @@ UPDATE_CHANNEL_URL = "https://t.me/TeraboxDownloaderINDIA"
 # Shortlink Ad System Configuration (VPLink / AdLinkFly)
 SHORTLINK_API_URL = environ.get("SHORTLINK_API_URL", "https://vplink.in/api")
 SHORTLINK_API_KEY = environ.get("SHORTLINK_API_KEY", "35591ad98834a002e1fe0b3b4acc6d84ef401782")
-PUBLIC_EARN_API = SHORTLINK_API_KEY  # Backward compatibility alias
 
 # Vercel API Details
 TERABOX_API_BASE = "https://teraapi-six.vercel.app"

@@ -8,9 +8,7 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 from PIL import Image
-from telethon import TelegramClient
-
-from config import BOT_USERNAME, PUBLIC_EARN_API, SHORTLINK_API_KEY, SHORTLINK_API_URL
+from config import BOT_USERNAME, SHORTLINK_API_KEY, SHORTLINK_API_URL
 from redis_db import db
 
 
@@ -308,14 +306,14 @@ def generate_shortenedUrl(
 ):
     try:
         uid = str(uuid.uuid4())
-        api_key = SHORTLINK_API_KEY or PUBLIC_EARN_API
+        api_key = SHORTLINK_API_KEY
         # If API key is empty, bypass ad shortener and return direct activation link
         if not api_key:
             url = f"https://t.me/{BOT_USERNAME}?start=token_{uid}"
             db.set(f"token_{uid}", f"{sender_id}|{url}", ex=21600)
             return url
 
-        endpoints = [SHORTLINK_API_URL, "https://vplink.in/api", "https://vplinks.in/api", "https://publicearn.com/api"]
+        endpoints = [SHORTLINK_API_URL, "https://vplink.in/api", "https://vplinks.in/api"]
         for api_endpoint in endpoints:
             if not api_endpoint:
                 continue
