@@ -221,24 +221,34 @@ async def download_file(
     try:
         if not headers:
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept-Encoding": "identity",
             }
-        response = requests.get(url, stream=True, headers=headers, timeout=45)
-        response.raise_for_status()
-        with suppress(
-            requests.exceptions.ChunkedEncodingError,
-        ):
-            with open(filename, "wb") as file:
-                for chunk in response.iter_content(chunk_size=1024 * 512):
-                    if not chunk:
-                        continue
-                    file.write(chunk)
-                    if callback:
-                        downloaded_size = file.tell()
-                        total_size = int(
-                            response.headers.get("content-length", 0))
-                        await callback(downloaded_size, total_size, "Downloading")
-        # await asyncio.sleep(2)
+
+        def _stream_download():
+            session = requests.Session()
+            response = session.get(url, stream=True, headers=headers, timeout=60)
+            response.raise_for_status()
+            total_size = int(response.headers.get("content-length", 0))
+
+            chunk_size = 1024 * 1024  # 1 MB chunks
+            with open(filename, "wb") as f:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        f.write(chunk)
+                        yield f.tell(), total_size
+
+        loop = asyncio.get_running_loop()
+        gen = _stream_download()
+
+        while True:
+            try:
+                downloaded_size, total_size = await loop.run_in_executor(None, next, gen)
+                if callback:
+                    await callback(downloaded_size, total_size, "Downloading")
+            except StopIteration:
+                break
+
         return filename
     except Exception as e:
         traceback.print_exc()
