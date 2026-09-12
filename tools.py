@@ -10,7 +10,7 @@ import requests
 from PIL import Image
 from telethon import TelegramClient
 
-from config import BOT_USERNAME, PUBLIC_EARN_API
+from config import BOT_USERNAME, PUBLIC_EARN_API, SHORTLINK_API_KEY, SHORTLINK_API_URL
 from redis_db import db
 
 
@@ -308,30 +308,35 @@ def generate_shortenedUrl(
 ):
     try:
         uid = str(uuid.uuid4())
+        api_key = SHORTLINK_API_KEY or PUBLIC_EARN_API
         # If API key is empty, bypass ad shortener and return direct activation link
-        if not PUBLIC_EARN_API:
+        if not api_key:
             url = f"https://t.me/{BOT_USERNAME}?start=token_{uid}"
             db.set(f"token_{uid}", f"{sender_id}|{url}", ex=21600)
             return url
 
-        try:
-            data = requests.get(
-                "https://publicearn.com/api",
-                params={
-                    "api": PUBLIC_EARN_API,
-                    "url": f"https://t.me/{BOT_USERNAME}?start=token_{uid}",
-                    "alias": uid.split("-", maxsplit=2)[0],
-                },
-                timeout=10
-            )
-            data.raise_for_status()
-            data_json = data.json()
-            if data_json.get("status") == "success":
-                url = data_json.get("shortenedUrl")
-                db.set(f"token_{uid}", f"{sender_id}|{url}", ex=21600)
-                return url
-        except Exception as api_err:
-            print(f"Ad shortener API error: {api_err}. Falling back to direct link.")
+        endpoints = [SHORTLINK_API_URL, "https://vplink.in/api", "https://vplinks.in/api", "https://publicearn.com/api"]
+        for api_endpoint in endpoints:
+            if not api_endpoint:
+                continue
+            try:
+                data = requests.get(
+                    api_endpoint,
+                    params={
+                        "api": api_key,
+                        "url": f"https://t.me/{BOT_USERNAME}?start=token_{uid}",
+                        "alias": uid.split("-", maxsplit=2)[0],
+                    },
+                    timeout=10
+                )
+                if data.status_code == 200:
+                    data_json = data.json()
+                    if data_json.get("status") == "success" and data_json.get("shortenedUrl"):
+                        url = data_json.get("shortenedUrl")
+                        db.set(f"token_{uid}", f"{sender_id}|{url}", ex=21600)
+                        return url
+            except Exception as api_err:
+                print(f"Ad shortener API error for {api_endpoint}: {api_err}")
 
         # Fallback to direct activation link
         url = f"https://t.me/{BOT_USERNAME}?start=token_{uid}"
