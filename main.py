@@ -234,7 +234,64 @@ Keep the interactions going smoothly! 😊
 
 @bot.on(
     events.NewMessage(
-        pattern=r"/start (?!token_)([0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12})",
+        pattern=r"/start app_(.+)",
+        incoming=True,
+        outgoing=False,
+        func=lambda x: x.is_private,
+    )
+)
+async def start_app_link(m: Message):
+    shortcode = m.pattern_match.group(1).strip()
+    if shortcode.startswith("http"):
+        url = shortcode
+        shortcode = extract_code_from_url(url) or "app_link"
+    else:
+        url = f"https://1024terabox.com/s/{shortcode}"
+
+    hm = await m.reply("📱 **Link received from App! Processing...**")
+
+    try:
+        data = get_data(url)
+    except Exception:
+        return await hm.edit("Sorry! API is dead or maybe your link is broken.")
+
+    if not data:
+        return await hm.edit("Sorry! API is dead or maybe your link is broken.")
+
+    if isinstance(data, dict) and (data.get("error_type") == "MULTIPLE_FILES" or data.get("is_folder")):
+        msg = data.get("error_message") or "This link contains multiple files or a folder. Please provide a link with a single file."
+        return await hm.edit(f"⚠️ **Multiple Files / Folder Not Allowed**\n\n{msg}")
+
+    import json
+    db.set(f"req_url_{shortcode}", url, ex=86400)
+    db.set(f"req_data_{shortcode}", json.dumps(data), ex=86400)
+
+    file_name = data.get("file_name", "Unknown File")
+    file_size = data.get("size", "N/A")
+
+    text = f"""
+📥 **File Details Found (via Mobile App)!**
+
+📁 **Name**: `{file_name}`
+📦 **Size**: `{file_size}`
+
+👇 **How would you like to receive your file?**
+"""
+    await hm.edit(
+        text,
+        parse_mode="markdown",
+        buttons=[
+            [
+                Button.inline("🎬 Video Format", data=f"dl_v_{shortcode}"),
+                Button.inline("📁 Document / File", data=f"dl_d_{shortcode}"),
+            ]
+        ]
+    )
+
+
+@bot.on(
+    events.NewMessage(
+        pattern=r"/start (?!token_)(?!app_)([0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12})",
         incoming=True,
         outgoing=False,
         func=lambda x: x.is_private,
