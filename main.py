@@ -372,7 +372,7 @@ Your session will expire in {t.to_humanreadable()}."""
 
     # ANTI-BYPASS TIMER CHECK
     import config
-    min_time = getattr(config, "MIN_SHORTLINK_TIME", 15)
+    min_time = getattr(config, "MIN_SHORTLINK_TIME", 60)
     if created_at > 0 and m.sender_id not in ADMINS:
         elapsed = time.time() - created_at
         if elapsed < min_time:
@@ -381,7 +381,7 @@ Your session will expire in {t.to_humanreadable()}."""
             return await m.reply(
                 "❌ **Shortlink Bypass Detected!**\n\n"
                 f"Aapne shortlink ko bypass karne ki koshish ki hai (ya ultra-fast bypasser tool use kiya hai).\n"
-                f"Shortlink complete karne me kam se kam **{min_time} seconds** ka samay lagta hai, par aapne ise sirf `{int(elapsed)}s` me complete karne ki koshish ki.\n\n"
+                f"Shortlink complete karne me kam se kam **1 minute ({min_time}s)** ka samay lagta hai, par aapne ise sirf `{int(elapsed)}s` me complete karne ki koshish ki.\n\n"
                 "⚠️ Kripya niche diye gaye button se naya link le kar bina bypasser ke shortlink complete karein.",
                 buttons=[Button.url("Click Here To Refresh Token", url=new_shortened_url or "")]
             )
