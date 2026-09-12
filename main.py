@@ -379,11 +379,8 @@ Your session will expire in {t.to_humanreadable()}."""
             db.delete(f"token_{uuid}")
             new_shortened_url = generate_shortenedUrl(m.sender_id)
             return await m.reply(
-                "❌ **Shortlink Bypass Detected!**\n\n"
-                f"Aapne shortlink ko bypass karne ki koshish ki hai (ya ultra-fast bypasser tool use kiya hai).\n"
-                f"Shortlink complete karne me kam se kam **1 minute ({min_time}s)** ka samay lagta hai, par aapne ise sirf `{int(elapsed)}s` me complete karne ki koshish ki.\n\n"
-                "⚠️ Kripya niche diye gaye button se naya link le kar bina bypasser ke shortlink complete karein.",
-                buttons=[Button.url("Click Here To Refresh Token", url=new_shortened_url or "")]
+                "❌ **Bypass Detected!**\n\nPlease complete ads again.",
+                buttons=[Button.url("Click Here To Complete Ads Again", url=new_shortened_url or "")]
             )
 
     set_user_active = db.set(f"active_{m.sender_id}", time.time(), ex=3600)
