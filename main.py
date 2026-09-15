@@ -948,8 +948,20 @@ async def download_format_callback(event):
     fmt_name = "Document" if as_doc else "Video"
     fname = data.get("file_name", "File") if data else "File"
 
+    # Immediately remove format selection buttons and show clean loading status text
+    try:
+        await hm.edit(
+            f"🌀 **Preparing Download...**\n\n"
+            f"📁 **File:** `{fname}`\n"
+            f"⚡ **Format:** `{fmt_name}`\n"
+            f"⏳ **Status:** `Connecting to server...`",
+            buttons=None
+        )
+    except Exception:
+        pass
+
     global is_processing, download_queue, cached_loading_media
-    # Send Loading GIF / Animation / Sticker if available
+    # Try sending Loading GIF / Animation / Sticker if available
     loading_msg = None
     target_media = cached_loading_media
 
@@ -968,12 +980,6 @@ async def download_format_callback(event):
                 cached_loading_media = loading_msg.media
         except Exception as e:
             log.error(f"Could not send loading animation: {e}")
-
-    # Immediately remove format selection buttons so user cannot double-click
-    try:
-        await hm.edit(f"🌀 **Preparing download as {fmt_name}...**", buttons=None)
-    except Exception:
-        pass
 
     # Check fast-forward file cache first
     code = extract_code_from_url(url) or shorturl
