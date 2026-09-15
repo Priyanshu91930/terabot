@@ -697,6 +697,7 @@ async def show_custom_thumbnail(m: Message):
 download_queue = []
 is_processing = False
 pending_download_requests = {}
+cached_loading_media = None
 
 async def trigger_next_in_queue():
     global is_processing, download_queue
@@ -947,20 +948,26 @@ async def download_format_callback(event):
     fmt_name = "Document" if as_doc else "Video"
     fname = data.get("file_name", "File") if data else "File"
 
+    global is_processing, download_queue, cached_loading_media
     # Send Loading GIF / Animation / Sticker if available
     loading_msg = None
-    media_path = None
-    for filename in ["loading.gif", "loading.mp4", "loading.webp", "loading.jpg"]:
-        p = os.path.join(os.getcwd(), filename)
-        if os.path.exists(p):
-            media_path = p
-            break
+    target_media = cached_loading_media
 
-    if media_path:
+    if not target_media:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        for filename in ["loading.gif", "loading.mp4", "loading.webp", "loading.jpg"]:
+            p = os.path.join(base_dir, filename)
+            if os.path.exists(p):
+                target_media = p
+                break
+
+    if target_media:
         try:
-            loading_msg = await event.respond(file=media_path)
+            loading_msg = await event.respond(file=target_media)
+            if loading_msg and getattr(loading_msg, 'media', None):
+                cached_loading_media = loading_msg.media
         except Exception as e:
-            log.warning(f"Could not send loading animation: {e}")
+            log.error(f"Could not send loading animation: {e}")
 
     # Immediately remove format selection buttons so user cannot double-click
     try:
