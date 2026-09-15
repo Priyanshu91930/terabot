@@ -947,17 +947,20 @@ async def download_format_callback(event):
     fmt_name = "Document" if as_doc else "Video"
     fname = data.get("file_name", "File") if data else "File"
 
-    # Send Loading Sticker if available
+    # Send Loading GIF / Animation / Sticker if available
     loading_msg = None
-    sticker_path = os.path.join(os.getcwd(), "loading.webp")
-    if not os.path.exists(sticker_path):
-        sticker_path = os.path.join(os.getcwd(), "loading.jpg")
+    media_path = None
+    for filename in ["loading.gif", "loading.mp4", "loading.webp", "loading.jpg"]:
+        p = os.path.join(os.getcwd(), filename)
+        if os.path.exists(p):
+            media_path = p
+            break
 
-    if os.path.exists(sticker_path):
+    if media_path:
         try:
-            loading_msg = await event.respond(file=sticker_path)
+            loading_msg = await event.respond(file=media_path)
         except Exception as e:
-            log.warning(f"Could not send loading sticker: {e}")
+            log.warning(f"Could not send loading animation: {e}")
 
     # Immediately remove format selection buttons so user cannot double-click
     try:
