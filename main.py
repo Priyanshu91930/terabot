@@ -23,6 +23,34 @@ from config import (ADMINS, API_HASH, API_ID, BOT_TOKEN, HOST, PASSWORD, PORT,
                     UPDATE_CHANNEL_URL, MONGODB_URI, USE_TOKEN_SYSTEM,
                     TERABOX_API_BASE, TERABOX_API_KEY)
 from redis_db import db
+from pymongo import MongoClient
+
+mongo_client = MongoClient(MONGODB_URI)
+mongo_db = mongo_client['terabox_downloader']
+bot_users_col = mongo_db['botusers']
+
+def save_bot_user(user):
+    if not user or not hasattr(user, 'id'):
+        return
+    try:
+        bot_users_col.update_one(
+            {'user_id': user.id},
+            {
+                '$set': {
+                    'user_id': user.id,
+                    'first_name': getattr(user, 'first_name', '') or '',
+                    'username': getattr(user, 'username', '') or '',
+                    'updated_at': datetime.utcnow()
+                },
+                '$setOnInsert': {
+                    'created_at': datetime.utcnow()
+                }
+            },
+            upsert=True
+        )
+    except Exception as e:
+        log.error(f"[DB] Error saving bot user: {e}")
+
 from send_media import VideoSender
 from terabox import get_data
 from tools import (extract_code_from_url, get_urls_from_string, generate_shortenedUrl, 
@@ -47,9 +75,11 @@ def is_force_sub_enabled() -> bool:
     return True # Enabled by default
 
 
-# General debug logger for incoming private messages
+# General debug logger & user tracker for incoming private messages
 @bot.on(events.NewMessage(incoming=True, outgoing=False, func=lambda x: x.is_private))
 async def debug_incoming_messages(event):
+    if event.sender:
+        save_bot_user(event.sender)
     log.info(f"Received private message from {event.sender_id}: '{event.text}'")
 
 
@@ -145,6 +175,124 @@ Control bot features dynamically. Changes take effect instantly without restarti
                 Button.inline("Close Panel 🔒", data="close_settings"),
             ]
         ]
+    )
+
+
+# ------------------ ADMIN STATS & BROADCAST COMMANDS ------------------
+
+@bot.on(
+    events.NewMessage(
+        pattern=r"^/(stats|status)$",
+        incoming=True,
+        outgoing=False,
+        from_users=ADMINS,
+    )
+)
+async def bot_stats_handler(m: Message):
+    status_msg = await m.reply("📊 **Fetching live statistics...**", parse_mode="markdown")
+    try:
+        total_bot_users = bot_users_col.count_documents({})
+        token_sys = "✅ Enabled" if is_token_system_enabled() else "❌ Disabled"
+        forcesub = "✅ Enabled" if is_force_sub_enabled() else "❌ Disabled"
+        
+        api_stats_text = ""
+        try:
+            r = requests.get(f"{TERABOX_API_BASE}/stats", headers={"x-api-key": TERABOX_API_KEY}, timeout=5)
+            if r.status_code == 200:
+                stats_json = r.json()
+                downloads = stats_json.get('downloads', 0)
+                views = stats_json.get('views', 0)
+                streams = stats_json.get('streams', 0)
+                api_stats_text = f"\n📈 **API Usage Statistics:**\n• Total Downloads: `{downloads}`\n• Video Streams: `{streams}`\n• Page Views: `{views}`"
+        except Exception:
+            pass
+
+        msg_text = f"""
+🤖 **TeraBox Bot Statistics Dashboard**
+
+👥 **Total Registered Bot Users:** `{total_bot_users}`
+
+⚙️ **Bot Control Settings:**
+• **Token System (/gen & Ads)**: {token_sys}
+• **Force Sub Join**: {forcesub}
+• **VPS Base API**: `{TERABOX_API_BASE}`
+{api_stats_text}
+"""
+        await status_msg.edit(msg_text, parse_mode="markdown")
+    except Exception as e:
+        await status_msg.edit(f"❌ Error fetching stats: {e}")
+
+
+@bot.on(
+    events.NewMessage(
+        pattern=r"^/(broadcast|bcast)(\s+[\s\S]+)?$",
+        incoming=True,
+        outgoing=False,
+        from_users=ADMINS,
+    )
+)
+async def broadcast_handler(m: Message):
+    reply_msg = await m.get_reply_message()
+    broadcast_text = m.pattern_match.group(2)
+    
+    if not reply_msg and not broadcast_text:
+        return await m.reply(
+            "⚠️ **Broadcast Command Usage:**\n\n"
+            "1. **Reply to any message** (text, photo, video, document, audio) with `/broadcast`\n"
+            "2. Or type `/broadcast Your message here`",
+            parse_mode="markdown"
+        )
+    
+    users = list(bot_users_col.find({}, {"user_id": 1}))
+    total_users = len(users)
+    if total_users == 0:
+        return await m.reply("❌ No registered users found in database to broadcast.")
+    
+    progress_msg = await m.reply(f"📢 **Starting Broadcast to {total_users} users...**", parse_mode="markdown")
+    
+    success = 0
+    failed = 0
+    blocked = 0
+    start_time = time.time()
+    
+    for idx, u in enumerate(users):
+        user_id = u.get("user_id")
+        if not user_id:
+            continue
+        try:
+            if reply_msg:
+                await bot.send_message(user_id, reply_msg)
+            else:
+                await bot.send_message(user_id, broadcast_text.strip(), parse_mode="markdown")
+            success += 1
+        except Exception as err:
+            err_str = str(err).lower()
+            if "user is blocked" in err_str or "deactivated" in err_str or "inputuserdeactivated" in err_str:
+                blocked += 1
+                bot_users_col.delete_one({"user_id": user_id})
+            else:
+                failed += 1
+        
+        # Update progress every 20 users
+        if idx > 0 and idx % 20 == 0:
+            await progress_msg.edit(
+                f"📢 **Broadcasting in Progress...**\n\n"
+                f"• **Progress:** `{idx}/{total_users}`\n"
+                f"• **Successful:** `{success}`\n"
+                f"• **Blocked / Removed:** `{blocked}`\n"
+                f"• **Failed:** `{failed}`",
+                parse_mode="markdown"
+            )
+        await asyncio.sleep(0.05)  # Avoid flood limit
+        
+    elapsed = round(time.time() - start_time, 2)
+    await progress_msg.edit(
+        f"✅ **Broadcast Completed in {elapsed}s!**\n\n"
+        f"• **Total Target Users:** `{total_users}`\n"
+        f"• **Successfully Delivered:** `{success}`\n"
+        f"• **Blocked / Deactivated:** `{blocked}`\n"
+        f"• **Failed:** `{failed}`",
+        parse_mode="markdown"
     )
 
 
