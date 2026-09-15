@@ -174,11 +174,25 @@ async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id: int) -> bo
         print(f"DEBUG: get_permissions failed for chat {target_entity} user {user_id}: {e}")
         pass
 
+_mongo_client = None
+
+def _check_join_request_mongo(user_id, numeric_id):
+    global _mongo_client
+    try:
+        if _mongo_client is None:
+            from config import MONGODB_URI
+            from pymongo import MongoClient
+            _mongo_client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=1500)
+        db_mongo = _mongo_client['terabox_downloader']
+        join_reqs = db_mongo['joinrequests']
+        req = join_reqs.find_one({"userId": user_id, "chatId": numeric_id, "status": "pending"})
+        return bool(req)
+    except Exception as e:
+        print(f"Error checking MongoDB JoinRequest: {e}")
+        return False
+
     # 2. Check pending join request in MongoDB (Join Request Mode)
     try:
-        from config import MONGODB_URI
-        from pymongo import MongoClient
-        
         # Resolve target channel to obtain its numeric ID (e.g. -100xxxxxxxxxx)
         entity = await bot.get_input_entity(target_entity)
         if hasattr(entity, 'channel_id'):
@@ -190,20 +204,9 @@ async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id: int) -> bo
         else:
             return False
             
-        client = MongoClient(MONGODB_URI)
-        db = client.get_default_database()
-        if db is None or db.name == 'test':
-            db = client['terabox_downloader']
-            
-        join_reqs = db['joinrequests']
-        
-        # Look for a pending join request matching this user and channel
-        req = join_reqs.find_one({
-            "userId": user_id,
-            "chatId": numeric_id,
-            "status": "pending"
-        })
-        if req:
+        loop = asyncio.get_running_loop()
+        req_found = await loop.run_in_executor(None, _check_join_request_mongo, user_id, numeric_id)
+        if req_found:
             return True
     except Exception as e:
         print(f"Error checking MongoDB JoinRequest: {e}")

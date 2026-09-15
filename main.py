@@ -29,17 +29,15 @@ mongo_client = MongoClient(MONGODB_URI)
 mongo_db = mongo_client['terabox_downloader']
 bot_users_col = mongo_db['botusers']
 
-def save_bot_user(user):
-    if not user or not hasattr(user, 'id'):
-        return
+def _sync_save_bot_user(user_id, first_name, username):
     try:
         bot_users_col.update_one(
-            {'user_id': user.id},
+            {'user_id': user_id},
             {
                 '$set': {
-                    'user_id': user.id,
-                    'first_name': getattr(user, 'first_name', '') or '',
-                    'username': getattr(user, 'username', '') or '',
+                    'user_id': user_id,
+                    'first_name': first_name,
+                    'username': username,
                     'updated_at': datetime.utcnow()
                 },
                 '$setOnInsert': {
@@ -50,6 +48,19 @@ def save_bot_user(user):
         )
     except Exception as e:
         log.error(f"[DB] Error saving bot user: {e}")
+
+async def save_bot_user_async(event):
+    try:
+        sender = await event.get_sender()
+        user_id = event.sender_id or (getattr(sender, 'id', None) if sender else None)
+        if not user_id:
+            return
+        first_name = getattr(sender, 'first_name', '') or '' if sender else ''
+        username = getattr(sender, 'username', '') or '' if sender else ''
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _sync_save_bot_user, user_id, first_name, username)
+    except Exception:
+        pass
 
 from send_media import VideoSender
 from terabox import get_data
@@ -78,8 +89,7 @@ def is_force_sub_enabled() -> bool:
 # General debug logger & user tracker for incoming private messages
 @bot.on(events.NewMessage(incoming=True, outgoing=False, func=lambda x: x.is_private))
 async def debug_incoming_messages(event):
-    if event.sender:
-        save_bot_user(event.sender)
+    asyncio.create_task(save_bot_user_async(event))
     log.info(f"Received private message from {event.sender_id}: '{event.text}'")
 
 
