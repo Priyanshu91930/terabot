@@ -732,8 +732,12 @@ async def run_task(task):
     data = task.get("data")
     as_doc = task.get("as_doc", False)
     user_id = task.get("user_id")
+    loading_msg = task.get("loading_msg")
     
     try:
+        if loading_msg:
+            with suppress(Exception):
+                await loading_msg.delete()
         fmt_name = "Document" if as_doc else "Video"
         fname = data.get("file_name", "File") if data else "File"
         with suppress(Exception):
@@ -941,10 +945,20 @@ async def download_format_callback(event):
 
     hm = await event.get_message()
     fmt_name = "Document" if as_doc else "Video"
+    fname = data.get("file_name", "File") if data else "File"
+
+    # Send Loading Sticker / Image if available
+    loading_msg = None
+    loading_img_path = os.path.join(os.getcwd(), "loading.jpg")
+    if os.path.exists(loading_img_path):
+        try:
+            loading_msg = await event.respond(file=loading_img_path)
+        except Exception as e:
+            log.warning(f"Could not send loading image: {e}")
 
     # Immediately remove format selection buttons so user cannot double-click
     try:
-        await hm.edit(f"🚀 **Starting download as {fmt_name}...**", buttons=None)
+        await hm.edit(f"🌀 **Preparing download as {fmt_name}...**", buttons=None)
     except Exception:
         pass
 
@@ -953,6 +967,9 @@ async def download_format_callback(event):
     if code:
         fileid = db.get_key(code)
         if fileid:
+            if loading_msg:
+                with suppress(Exception):
+                    await loading_msg.delete()
             first_id = fileid.split(",")[0] if (isinstance(fileid, str) and "," in fileid) else fileid
             uid = db.get_key(f"mid_{fileid}") or db.get_key(f"mid_{first_id}") or code
             check = await VideoSender.forward_file(
@@ -968,16 +985,16 @@ async def download_format_callback(event):
         "data": data,
         "edit_message": hm,
         "as_doc": as_doc,
+        "loading_msg": loading_msg,
     }
 
     if is_processing:
         download_queue.append(task_payload)
         position = len(download_queue)
-        fname = data.get("file_name", "File") if data else "File"
         try:
             await hm.edit(
                 f"⏳ **Added to Download Queue!**\n\n"
-                f"📁 **File:** `{fname}`\n"
+                f"📁 **File:** `{fname}` ({fmt_name})\n"
                 f"🔢 **Your Position in Queue:** `#{position}`\n\n"
                 f"Please wait! Your download will start automatically as soon as preceding downloads finish.",
                 buttons=None
