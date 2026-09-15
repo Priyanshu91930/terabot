@@ -696,8 +696,13 @@ async def trigger_next_in_queue():
     for index, task in enumerate(download_queue):
         try:
             fmt_name = "Document" if task.get("as_doc") else "Video"
+            task_data = task.get("data") or {}
+            fname = task_data.get("file_name", "File")
             await task["edit_message"].edit(
-                f"⏳ **Your download is in queue ({fmt_name}).**\n\nPosition: `#{index + 1}`\n\nPlease wait, processing preceding files..."
+                f"⏳ **In Download Queue ({fmt_name})**\n\n"
+                f"📁 **File:** `{fname}`\n"
+                f"🔢 **Updated Queue Position:** `#{index + 1}`\n\n"
+                f"Please wait, your turn is coming up!"
             )
         except Exception:
             pass
@@ -715,8 +720,13 @@ async def run_task(task):
     
     try:
         fmt_name = "Document" if as_doc else "Video"
+        fname = data.get("file_name", "File") if data else "File"
         with suppress(Exception):
-            await hm.edit(f"🚀 **Processing your request... Starting download as {fmt_name}.**")
+            await hm.edit(
+                f"🚀 **Your Turn Arrived!**\n\n"
+                f"📁 **File:** `{fname}`\n"
+                f"⚡ **Starting download as {fmt_name}...**"
+            )
         await process_download(m, url, hm, data=data, as_doc=as_doc, user_id=user_id)
     except Exception as e:
         log.exception(f"Error running queue task: {e}")
@@ -943,9 +953,13 @@ async def download_format_callback(event):
     if is_processing:
         download_queue.append(task_payload)
         position = len(download_queue)
+        fname = data.get("file_name", "File") if data else "File"
         try:
             await hm.edit(
-                f"⏳ **Your download is in queue ({fmt_name}).**\n\nPosition: `#{position}`\n\nPlease wait, processing preceding files...",
+                f"⏳ **Added to Download Queue!**\n\n"
+                f"📁 **File:** `{fname}`\n"
+                f"🔢 **Your Position in Queue:** `#{position}`\n\n"
+                f"Please wait! Your download will start automatically as soon as preceding downloads finish.",
                 buttons=None
             )
         except Exception:
