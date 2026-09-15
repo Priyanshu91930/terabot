@@ -429,11 +429,16 @@ async def start_app_link(m: Message):
     file_name = data.get("file_name", "Unknown File")
     file_size = data.get("size", "N/A")
 
+    queue_notice = ""
+    if is_processing or len(download_queue) > 0:
+        total_waiting = len(download_queue) + (1 if is_processing else 0)
+        queue_notice = f"\n\n⏳ **Queue Status:** `{total_waiting}` download(s) active/queued. Selecting format will add your file to queue."
+
     text = f"""
 📥 **File Details Found (via Mobile App)!**
 
 📁 **Name**: `{file_name}`
-📦 **Size**: `{file_size}`
+📦 **Size**: `{file_size}`{queue_notice}
 
 👇 **How would you like to receive your file?**
 """
@@ -875,11 +880,16 @@ async def get_message(m: Message):
     file_name = data.get("file_name", "Unknown File")
     file_size = data.get("size", "N/A")
 
+    queue_notice = ""
+    if is_processing or len(download_queue) > 0:
+        total_waiting = len(download_queue) + (1 if is_processing else 0)
+        queue_notice = f"\n\n⏳ **Queue Status:** `{total_waiting}` download(s) active/queued. Selecting format will add your file to queue."
+
     text = f"""
 📥 **File Details Found!**
 
 📁 **Name**: `{file_name}`
-📦 **Size**: `{file_size}`
+📦 **Size**: `{file_size}`{queue_notice}
 
 👇 **How would you like to receive your file?**
 """
