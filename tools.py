@@ -136,6 +136,24 @@ def convert_seconds(seconds: int) -> str:
         return f"{remaining_seconds_final}s"
 
 
+_mongo_client = None
+
+def _check_join_request_mongo(user_id, numeric_id):
+    global _mongo_client
+    try:
+        if _mongo_client is None:
+            from config import MONGODB_URI
+            from pymongo import MongoClient
+            _mongo_client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=1500)
+        db_mongo = _mongo_client['terabox_downloader']
+        join_reqs = db_mongo['joinrequests']
+        req = join_reqs.find_one({"userId": user_id, "chatId": numeric_id, "status": "pending"})
+        return bool(req)
+    except Exception as e:
+        print(f"Error checking MongoDB JoinRequest: {e}")
+        return False
+
+
 async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id: int) -> bool:
     """
     Check if a user is present in a specific chat, either as a member or having a pending join request.
@@ -173,23 +191,6 @@ async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id: int) -> bo
     except Exception as e:
         print(f"DEBUG: get_permissions failed for chat {target_entity} user {user_id}: {e}")
         pass
-
-_mongo_client = None
-
-def _check_join_request_mongo(user_id, numeric_id):
-    global _mongo_client
-    try:
-        if _mongo_client is None:
-            from config import MONGODB_URI
-            from pymongo import MongoClient
-            _mongo_client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=1500)
-        db_mongo = _mongo_client['terabox_downloader']
-        join_reqs = db_mongo['joinrequests']
-        req = join_reqs.find_one({"userId": user_id, "chatId": numeric_id, "status": "pending"})
-        return bool(req)
-    except Exception as e:
-        print(f"Error checking MongoDB JoinRequest: {e}")
-        return False
 
     # 2. Check pending join request in MongoDB (Join Request Mode)
     try:
