@@ -232,7 +232,7 @@ async def download_file(
             response.raise_for_status()
             total_size = int(response.headers.get("content-length", 0))
 
-            chunk_size = 1024 * 1024  # 1 MB chunks
+            chunk_size = 4 * 1024 * 1024  # 4 MB chunks for high-speed streaming
             with open(filename, "wb") as f:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     if chunk:
