@@ -239,16 +239,22 @@ async def download_file(
                         f.write(chunk)
                         yield f.tell(), total_size
 
+        def _get_next_chunk(generator):
+            try:
+                return next(generator)
+            except StopIteration:
+                return None
+
         loop = asyncio.get_running_loop()
         gen = _stream_download()
 
         while True:
-            try:
-                downloaded_size, total_size = await loop.run_in_executor(None, next, gen)
-                if callback:
-                    await callback(downloaded_size, total_size, "Downloading")
-            except StopIteration:
+            res = await loop.run_in_executor(None, _get_next_chunk, gen)
+            if res is None:
                 break
+            downloaded_size, total_size = res
+            if callback:
+                await callback(downloaded_size, total_size, "Downloading")
 
         return filename
     except Exception as e:
