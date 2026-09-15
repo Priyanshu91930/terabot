@@ -486,10 +486,10 @@ async def start_token(m: Message):
     if not is_token_system_enabled():
         return await m.reply("The token system is currently disabled. You can send links directly!")
     uuid = m.pattern_match.group(1).strip()
-    if is_force_sub_enabled():
-        check_1 = await is_user_on_chat(bot, FORCE_SUB_ID_1, m.peer_id)
-        check_2 = await is_user_on_chat(bot, FORCE_SUB_ID_2, m.peer_id)
-        check_3 = await is_user_on_chat(bot, FORCE_SUB_ID_3, m.peer_id)
+    if is_force_sub_enabled() and m.sender_id not in ADMINS:
+        check_1 = await is_user_on_chat(bot, FORCE_SUB_ID_1, m.sender_id)
+        check_2 = await is_user_on_chat(bot, FORCE_SUB_ID_2, m.sender_id)
+        check_3 = await is_user_on_chat(bot, FORCE_SUB_ID_3, m.sender_id)
         if not check_1 or not check_2 or not check_3:
             return await m.reply(
                 "You haven't joined our channels and group yet. Please join all of them and then send me the link again.\nThank you!",

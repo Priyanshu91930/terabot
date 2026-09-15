@@ -154,10 +154,20 @@ def _check_join_request_mongo(user_id, numeric_id):
         return False
 
 
-async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id: int) -> bool:
+async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id) -> bool:
     """
     Check if a user is present in a specific chat, either as a member or having a pending join request.
     """
+    if hasattr(user_id, 'user_id'):
+        user_id = user_id.user_id
+    elif hasattr(user_id, 'id'):
+        user_id = user_id.id
+    else:
+        try:
+            user_id = int(user_id)
+        except Exception:
+            pass
+
     target_entity = chat_id
     
     # If chat_id is a private join/invite link, resolve the underlying chat/channel entity
