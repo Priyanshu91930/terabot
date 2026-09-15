@@ -436,13 +436,10 @@ __Powered by @TeraboxDownloaderINDIA__
         self.thumbnail = self.get_thumbnail()
         shorturl = extract_code_from_url(self.url)
         if not shorturl:
-            return await self.edit_message.edit("Seems like your link is invalid.")
-
-        try:
             if self.edit_message:
-                await self.edit_message.delete()
-        except Exception as e:
-            pass
+                with suppress(Exception):
+                    await self.edit_message.edit("Seems like your link is invalid.")
+            return
 
         if self.user_id:
             db.set(self.user_id, time.monotonic(), ex=60)
@@ -450,9 +447,17 @@ __Powered by @TeraboxDownloaderINDIA__
         if self.thumbnail and hasattr(self.thumbnail, "seek"):
             self.thumbnail.seek(0)
 
-        self.edit_message = await self.message.reply(
-            self.caption2, file=self.thumbnail, parse_mode="markdown"
-        )
+        try:
+            if self.edit_message:
+                await self.edit_message.edit(self.caption2, parse_mode="markdown")
+            else:
+                self.edit_message = await self.message.reply(self.caption2, parse_mode="markdown")
+        except Exception:
+            try:
+                self.edit_message = await self.client.send_message(self.message.chat_id, self.caption2, parse_mode="markdown")
+            except Exception:
+                pass
+
         self.task = asyncio.create_task(self.send_media(shorturl))
 
     async def stop(self, event):
