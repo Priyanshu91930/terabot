@@ -324,8 +324,16 @@ Let's make your video experience even better!
 """
     # Check if force sub is enabled and user has already joined
     is_joined = False
-    if is_force_sub_enabled():
-        is_joined = await is_user_on_chat(bot, m.sender_id)
+    if m.sender_id in ADMINS:
+        is_joined = True
+    elif is_force_sub_enabled():
+        check_1 = await is_user_on_chat(bot, FORCE_SUB_ID_1, m.sender_id)
+        check_2 = await is_user_on_chat(bot, FORCE_SUB_ID_2, m.sender_id)
+        check_3 = await is_user_on_chat(bot, FORCE_SUB_ID_3, m.sender_id)
+        if check_1 and check_2 and check_3:
+            is_joined = True
+    else:
+        is_joined = True
 
     if is_joined:
         # User already joined, don't show force sub join buttons
