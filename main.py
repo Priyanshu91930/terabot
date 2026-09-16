@@ -322,21 +322,40 @@ Hello there! I'm your friendly video downloader bot specially designed to fetch 
 
 Let's make your video experience even better!
 """
-    await m.reply(
-        reply_text,
-        link_preview=False,
-        parse_mode="markdown",
-        buttons=[
-            [
-                Button.url("Channel 1 📢", url=FORCE_LINK_1),
-                Button.url("Channel 2 📢", url=FORCE_LINK_2),
+    # Check if force sub is enabled and user has already joined
+    is_joined = False
+    if is_force_sub_enabled():
+        is_joined = await is_user_on_chat(bot, m.sender_id)
+
+    if is_joined:
+        # User already joined, don't show force sub join buttons
+        await m.reply(
+            reply_text,
+            link_preview=False,
+            parse_mode="markdown",
+            buttons=[
+                [
+                    Button.url("Update Channel 📢", url=UPDATE_CHANNEL_URL),
+                ],
             ],
-            [
-                Button.url("Group 💬", url=FORCE_LINK_3),
-                Button.url("Update Channel 📢", url=UPDATE_CHANNEL_URL),
+        )
+    else:
+        # User not joined yet, show force sub join buttons
+        await m.reply(
+            reply_text,
+            link_preview=False,
+            parse_mode="markdown",
+            buttons=[
+                [
+                    Button.url("Channel 1 📢", url=FORCE_LINK_1),
+                    Button.url("Channel 2 📢", url=FORCE_LINK_2),
+                ],
+                [
+                    Button.url("Group 💬", url=FORCE_LINK_3),
+                    Button.url("Update Channel 📢", url=UPDATE_CHANNEL_URL),
+                ],
             ],
-        ],
-    )
+        )
 
 
 @bot.on(
