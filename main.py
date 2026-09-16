@@ -336,16 +336,11 @@ Let's make your video experience even better!
         is_joined = True
 
     if is_joined:
-        # User already joined, don't show force sub join buttons
+        # User already joined, don't show any join/update buttons, just send clean text welcome
         await m.reply(
             reply_text,
             link_preview=False,
             parse_mode="markdown",
-            buttons=[
-                [
-                    Button.url("Update Channel 📢", url=UPDATE_CHANNEL_URL),
-                ],
-            ],
         )
     else:
         # User not joined yet, show force sub join buttons
