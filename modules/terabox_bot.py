@@ -32,7 +32,6 @@ Let's make your video experience even better!
 
 download_queue = []
 is_processing = False
-cached_loading_media = None
 
 
 async def trigger_next_in_queue(client):
@@ -68,12 +67,8 @@ async def run_task(client, task):
     data = task.get("data")
     as_doc = task.get("as_doc", False)
     user_id = task.get("user_id")
-    loading_msg = task.get("loading_msg")
     
     try:
-        if loading_msg:
-            with suppress(Exception):
-                await loading_msg.delete()
         fmt_name = "Document" if as_doc else "Video"
         fname = data.get("file_name", "File") if data else "File"
         with suppress(Exception):
@@ -377,26 +372,11 @@ def register_terabox_bot(client):
                 buttons=None
             )
 
-        loading_msg = None
-        if not cached_loading_media:
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            for filename in ["loading.gif", "loading.mp4", "loading.webp", "loading.jpg"]:
-                p = os.path.join(base_dir, filename)
-                if os.path.exists(p):
-                    cached_loading_media = p
-                    break
-        if cached_loading_media:
-            with suppress(Exception):
-                loading_msg = await event.respond(file=cached_loading_media)
-
         # Check fast-forward cache
         code = extract_code_from_url(url) or shorturl
         if code:
             fileid = db.get_key(code)
             if fileid:
-                if loading_msg:
-                    with suppress(Exception):
-                        await loading_msg.delete()
                 first_id = fileid.split(",")[0] if (isinstance(fileid, str) and "," in fileid) else fileid
                 uid = db.get_key(f"mid_{fileid}") or db.get_key(f"mid_{first_id}") or code
                 check = await VideoSender.forward_file(
@@ -412,7 +392,6 @@ def register_terabox_bot(client):
             "data": data,
             "edit_message": hm,
             "as_doc": as_doc,
-            "loading_msg": loading_msg,
         }
 
         if is_processing:

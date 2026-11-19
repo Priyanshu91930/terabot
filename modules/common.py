@@ -62,7 +62,7 @@ class StorageGuard:
                 for f in files:
                     if f.endswith(('.mp4', '.mkv', '.webm', '.part', '.jpg', '.png', '.webp', '.zip')):
                         # Protect system files and thumbnails
-                        if f in ["admin_thumb.jpg", "loading.gif", "loading.mp4", "loading.webp", "loading.jpg"]:
+                        if f in ["admin_thumb.jpg"]:
                             continue
                         fpath = os.path.join(root, f)
                         try:
