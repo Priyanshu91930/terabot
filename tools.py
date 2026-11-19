@@ -335,15 +335,17 @@ def remove_all_videos():
 
 def generate_shortenedUrl(
     sender_id: int,
+    bot_username: str = None,
 ):
     try:
         import time
         uid = str(uuid.uuid4())
         created_at = time.time()
         api_key = SHORTLINK_API_KEY
+        bot_uname = bot_username or BOT_USERNAME
         # If API key is empty, bypass ad shortener and return direct activation link
         if not api_key:
-            url = f"https://t.me/{BOT_USERNAME}?start=token_{uid}"
+            url = f"https://t.me/{bot_uname}?start=token_{uid}"
             db.set(f"token_{uid}", f"{sender_id}|{url}|{created_at}", ex=21600)
             return url
 
@@ -356,7 +358,7 @@ def generate_shortenedUrl(
                     api_endpoint,
                     params={
                         "api": api_key,
-                        "url": f"https://t.me/{BOT_USERNAME}?start=token_{uid}",
+                        "url": f"https://t.me/{bot_uname}?start=token_{uid}",
                         "alias": uid.split("-", maxsplit=2)[0],
                     },
                     timeout=10
@@ -371,7 +373,7 @@ def generate_shortenedUrl(
                 print(f"Ad shortener API error for {api_endpoint}: {api_err}")
 
         # Fallback to direct activation link
-        url = f"https://t.me/{BOT_USERNAME}?start=token_{uid}"
+        url = f"https://t.me/{bot_uname}?start=token_{uid}"
         db.set(f"token_{uid}", f"{sender_id}|{url}|{created_at}", ex=21600)
         return url
     except Exception as e:

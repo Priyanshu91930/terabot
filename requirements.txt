@@ -11,3 +11,5 @@ redis
 FastTelethonhelper
 humanreadable
 pymongo
+yt-dlp
+

@@ -4,15 +4,30 @@
 
 ### A telegram bot for downloading terabox videos fastly
 
-## Features:
+## 🚀 Multi-Bot Hub (Single Script, Multiple Dedicated Bots)
 
-- Stop downloading
-- Token system
-- Token Regenration after 1 hour
-- 1 minute anti spam
-- Download videos fastly
-- Fast
-- Easy to update
+Run multiple purpose-built downloader bots simultaneously inside **1 single Python process** to save VPS memory (~100 MB RAM total):
+
+| Bot | Supported Platforms / Types |
+| :--- | :--- |
+| **TeraBox Downloader** | TeraBox, 1024Tera, TeraFileShare links |
+| **Instagram Downloader** | Reels, Posts, Carousels, Stories |
+| **Threads Downloader** | Threads videos & photos |
+| **Pinterest Downloader** | Pins, HD Videos, Images |
+| **Kick Downloader** | Kick clips & VODs |
+| **Twitch Downloader** | Twitch clips & Highlights |
+
+In `config.py`, simply fill in the Bot Tokens you want to activate:
+```python
+TERABOX_BOT_TOKEN = "..."   # TeraBox Bot
+INSTA_BOT_TOKEN = "..."     # Instagram Bot
+THREADS_BOT_TOKEN = "..."   # Threads Bot
+PINTEREST_BOT_TOKEN = "..." # Pinterest Bot
+KICK_BOT_TOKEN = "..."      # Kick Bot
+TWITCH_BOT_TOKEN = "..."    # Twitch Bot
+```
+*Leave any token empty `""` to keep that bot disabled.*
+
 
 ## **Table of Contents**
 

@@ -9,4 +9,9 @@ login.txt
 *.txt
 *.ipynb
 env/
-config.py
+config.py
+bot_sessions/
+scratch_test_folder.py
+downloads/
+
+

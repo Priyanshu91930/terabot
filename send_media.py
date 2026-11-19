@@ -89,6 +89,7 @@ class VideoSender:
         self.message = message
         self.as_doc = as_doc
         self.user_id = user_id or (message.sender_id if hasattr(message, "sender_id") else None)
+        self.bot_username = getattr(self.client, 'bot_username', BOT_USERNAME)
         self.uuid = str(uuid4())
         self.stop_sending = False
         self.thumbnail = self.get_thumbnail()
@@ -317,7 +318,7 @@ __Powered by @TeraboxDownloaderINDIA__
                                 [
                                     Button.url(
                                         "Direct Link",
-                                        url=f"https://{BOT_USERNAME}.t.me?start={self.uuid}",
+                                        url=f"https://{self.bot_username}.t.me?start={self.uuid}",
                                     ),
                                 ],
                                 [
@@ -556,7 +557,7 @@ __Powered by @TeraboxDownloaderINDIA__
                         [
                             Button.url(
                                 "Direct Link",
-                                url=f"https://{BOT_USERNAME}.t.me?start={uid or ''}",
+                                url=f"https://{self.bot_username}.t.me?start={uid or ''}",
                             ),
                         ],
                         [
