@@ -252,24 +252,6 @@ def register_terabox_bot(client):
         remove_all_videos()
         await m.reply("Removed all videos from cache.")
 
-    # ------------------ RAW JOIN REQUEST HANDLER ------------------
-    @client.on(events.Raw(types.UpdateBotChatInviteRequester))
-    async def handle_raw_join_request(event):
-        try:
-            user_id = event.user_id
-            chat_id = event.peer.channel_id if hasattr(event.peer, 'channel_id') else event.peer.chat_id
-            chat_id = int(f"-100{chat_id}")
-            from pymongo import MongoClient
-            client_mongo = MongoClient(MONGODB_URI)
-            db_mongo = client_mongo['terabox_downloader']
-            db_mongo['joinrequests'].update_one(
-                {"userId": user_id, "chatId": chat_id},
-                {"$set": {"status": "pending", "createdAt": datetime.utcnow()}},
-                upsert=True
-            )
-        except Exception:
-            pass
-
     # ------------------ TERABOX LINK RECEIVER ------------------
     @client.on(events.NewMessage(incoming=True, outgoing=False, func=lambda m: m.is_private and m.text and get_urls_from_string(m.text)))
     async def get_message(m: Message):

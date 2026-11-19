@@ -243,21 +243,36 @@ group_cooldowns = {}
 def register_common_handlers(client, service_name: str, welcome_banner: str):
     """Registers standard handlers (debug, start, gen, settings, broadcast, stats, join requests) on client."""
     
-    # Handle pending join requests and save in MongoDB
+    # Handle chat join requests: Record in MongoDB and Auto-Approve (Accept)
     from telethon.tl import types
+    from telethon.tl.functions.messages import HideChatJoinRequestRequest
     @client.on(events.Raw(types.UpdateBotChatInviteRequester))
     async def _raw_join_req(event):
         try:
             uid = event.user_id
             raw_cid = event.peer.channel_id if hasattr(event.peer, 'channel_id') else event.peer.chat_id
             full_cid = int(f"-100{raw_cid}")
+            
+            # 1. Save / Update join request in MongoDB as approved
             bot_users_col.database['joinrequests'].update_one(
                 {"userId": uid, "chatId": full_cid},
-                {"$set": {"status": "pending", "createdAt": datetime.utcnow()}},
+                {"$set": {"status": "approved", "updatedAt": datetime.utcnow()}},
                 upsert=True
             )
-        except Exception:
-            pass
+            
+            # 2. Auto-Accept / Approve user into the channel immediately
+            try:
+                try:
+                    user_entity = await client.get_input_entity(uid)
+                except Exception:
+                    user_entity = uid
+                await client(HideChatJoinRequestRequest(peer=event.peer, user_id=user_entity, approved=True))
+                log.info(f"✅ [AUTO-ACCEPT] Approved join request for user {uid} in chat {full_cid}")
+            except Exception as ae:
+                log.warning(f"Could not auto-approve join request for {uid} in {full_cid}: {ae}")
+                
+        except Exception as e:
+            log.error(f"Error handling join request: {e}")
 
     # User activity & tracker
     @client.on(events.NewMessage(incoming=True, outgoing=False, func=lambda x: x.is_private))

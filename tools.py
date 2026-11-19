@@ -164,7 +164,7 @@ def _check_join_request_mongo(user_id, numeric_id):
         req = join_reqs.find_one({
             "userId": {"$in": uids},
             "chatId": {"$in": cids},
-            "status": "pending"
+            "status": {"$in": ["pending", "approved"]}
         })
         return bool(req)
     except Exception as e:
