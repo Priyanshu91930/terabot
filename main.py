@@ -9,6 +9,7 @@ from modules.common import auto_cleaner_task, StorageGuard
 from modules.terabox_bot import register_terabox_bot
 from modules.insta_bot import register_insta_bot
 from modules.threads_bot import register_threads_bot
+from modules.youtube_bot import register_youtube_bot
 from modules.pinterest_bot import register_pinterest_bot
 from modules.kick_bot import register_kick_bot
 from modules.twitch_bot import register_twitch_bot
@@ -23,6 +24,7 @@ BOT_MODULE_MAP = {
     "terabox": register_terabox_bot,
     "instagram": register_insta_bot,
     "threads": register_threads_bot,
+    "youtube": register_youtube_bot,
     "pinterest": register_pinterest_bot,
     "kick": register_kick_bot,
     "twitch": register_twitch_bot,

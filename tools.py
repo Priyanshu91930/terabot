@@ -164,7 +164,7 @@ def _check_join_request_mongo(user_id, numeric_id):
         req = join_reqs.find_one({
             "userId": {"$in": uids},
             "chatId": {"$in": cids},
-            "status": {"$in": ["pending", "approved"]}
+            "status": "pending"
         })
         return bool(req)
     except Exception as e:
@@ -188,12 +188,26 @@ async def is_user_on_chat(bot: TelegramClient, chat_id, user_id, chat_link: str 
     except Exception:
         pass
 
+    # 1. First check pending join request in MongoDB (Fastest & 100% reliable for Join Request channels)
+    numeric_id = None
+    try:
+        raw_id_str = str(chat_id).replace("-100", "").replace("-", "")
+        clean_int = int(raw_id_str)
+        numeric_id = int(f"-100{clean_int}")
+    except Exception:
+        pass
+
+    if numeric_id:
+        loop = asyncio.get_running_loop()
+        req_found = await loop.run_in_executor(None, _check_join_request_mongo, user_id, numeric_id)
+        if req_found:
+            return True
+
     cache_key = f"{id(bot)}_{chat_id}_{chat_link}"
     target_entity = _entity_cache.get(cache_key)
-
     link_str = str(chat_link or chat_id or "")
 
-    # 1. Resolve Target Entity if not already cached
+    # 2. Resolve Target Entity if not already cached
     if not target_entity:
         # Priority A: Public username link (e.g. https://t.me/TeraboxDownloaderINDIA)
         if "t.me/" in link_str and "+" not in link_str and "joinchat/" not in link_str:
@@ -202,8 +216,8 @@ async def is_user_on_chat(bot: TelegramClient, chat_id, user_id, chat_link: str 
                 try:
                     target_entity = await bot.get_entity(f"@{uname}")
                     _entity_cache[cache_key] = target_entity
-                except Exception as e:
-                    print(f"DEBUG: Could not resolve username @{uname}: {e}")
+                except Exception:
+                    pass
 
         # Priority B: Direct chat_id lookup
         if not target_entity and chat_id:
@@ -219,28 +233,11 @@ async def is_user_on_chat(bot: TelegramClient, chat_id, user_id, chat_link: str 
                 except Exception:
                     pass
 
-        # Priority C: Private Invite Link (+hash or joinchat/hash)
-        if not target_entity and ("+" in link_str or "joinchat/" in link_str):
-            try:
-                from telethon.tl.functions.messages import CheckChatInviteRequest
-                from telethon.tl.types import ChatInviteAlready
-                hash_val = link_str.split("+")[-1] if "+" in link_str else link_str.split("joinchat/")[-1]
-                hash_val = hash_val.strip("/")
-                invite_info = await bot(CheckChatInviteRequest(hash_val))
-                if isinstance(invite_info, ChatInviteAlready):
-                    target_entity = invite_info.chat
-                    _entity_cache[cache_key] = target_entity
-                elif hasattr(invite_info, 'chat'):
-                    target_entity = invite_info.chat
-                    _entity_cache[cache_key] = target_entity
-            except Exception as ex:
-                print(f"DEBUG: Could not check chat invite {link_str}: {ex}")
-
     # Fallback to chat_id if target_entity still unresolved
     if not target_entity:
         target_entity = chat_id
 
-    # 2. Check Member using GetParticipantRequest & get_permissions
+    # 3. Check Direct Member using GetParticipantRequest & get_permissions
     is_confirmed_not_member = False
     try:
         from telethon.tl.functions.channels import GetParticipantRequest
@@ -270,21 +267,6 @@ async def is_user_on_chat(bot: TelegramClient, chat_id, user_id, chat_link: str 
             return True
         except Exception:
             pass
-
-    # 3. Check pending join request in MongoDB (Join Request Mode)
-    numeric_id = None
-    try:
-        raw_id_str = str(chat_id).replace("-100", "").replace("-", "")
-        clean_int = int(raw_id_str)
-        numeric_id = int(f"-100{clean_int}")
-    except Exception:
-        pass
-
-    if numeric_id:
-        loop = asyncio.get_running_loop()
-        req_found = await loop.run_in_executor(None, _check_join_request_mongo, user_id, numeric_id)
-        if req_found:
-            return True
 
     return False
 

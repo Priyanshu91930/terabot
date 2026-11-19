@@ -91,11 +91,14 @@ def _sync_ytdlp_download(url: str, request_id: str) -> Dict[str, Any]:
 
 
 def _sync_api_download(platform: str, url: str, request_id: str) -> Dict[str, Any]:
-    from config import SOCIAL_API_BASE
+    from config import SOCIAL_API_BASE, YOUTUBE_API_BASE
     import html
     import requests
 
-    endpoint = f"{SOCIAL_API_BASE}/api/download/{platform}"
+    if platform == "youtube":
+        endpoint = f"{YOUTUBE_API_BASE}/api/download/youtube"
+    else:
+        endpoint = f"{SOCIAL_API_BASE}/api/download/{platform}"
     out_folder = os.path.join(DOWNLOADS_DIR, request_id)
     os.makedirs(out_folder, exist_ok=True)
     
@@ -246,8 +249,8 @@ async def download_media_async(url: str, platform: str = None, status_msg=None) 
         request_id = str(uuid.uuid4())
         loop = asyncio.get_running_loop()
         
-        # For instagram, threads, pinterest: Call API first!
-        if platform in ["instagram", "threads", "pinterest"]:
+        # For instagram, threads, pinterest, youtube: Call API first!
+        if platform in ["instagram", "threads", "pinterest", "youtube"]:
             return await loop.run_in_executor(None, _sync_api_download, platform, url, request_id)
         else:
             return await loop.run_in_executor(None, _sync_ytdlp_download, url, request_id)

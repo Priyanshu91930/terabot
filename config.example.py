@@ -10,6 +10,7 @@ API_HASH = environ.get("API_HASH", "your_api_hash_here")
 TERABOX_BOT_TOKEN = environ.get("TERABOX_BOT_TOKEN", environ.get("BOT_TOKEN", ""))
 INSTA_BOT_TOKEN = environ.get("INSTA_BOT_TOKEN", "")
 THREADS_BOT_TOKEN = environ.get("THREADS_BOT_TOKEN", "")
+YOUTUBE_BOT_TOKEN = environ.get("YOUTUBE_BOT_TOKEN", "")
 PINTEREST_BOT_TOKEN = environ.get("PINTEREST_BOT_TOKEN", "")
 KICK_BOT_TOKEN = environ.get("KICK_BOT_TOKEN", "")
 TWITCH_BOT_TOKEN = environ.get("TWITCH_BOT_TOKEN", "")
@@ -33,6 +34,11 @@ BOTS_CONFIG = {
         "name": "Threads Downloader",
         "token": THREADS_BOT_TOKEN,
         "default_username": "threadsdownloader_bot"
+    },
+    "youtube": {
+        "name": "YouTube Downloader",
+        "token": YOUTUBE_BOT_TOKEN,
+        "default_username": "youtubedownloader_bot"
     },
     "pinterest": {
         "name": "Pinterest Downloader",
@@ -109,6 +115,9 @@ TERABOX_API_KEY = ""
 
 # Social Media Downloader API Base (Cloudflare Worker API)
 SOCIAL_API_BASE = environ.get("SOCIAL_API_BASE", "https://alldownloader.solankipriyanshu94.workers.dev")
+
+# YouTube Downloader API Base
+YOUTUBE_API_BASE = environ.get("YOUTUBE_API_BASE", "https://downloader-api-tau.vercel.app")
 
 # Database Configuration
 MONGODB_URI = ""
