@@ -243,36 +243,33 @@ group_cooldowns = {}
 def register_common_handlers(client, service_name: str, welcome_banner: str):
     """Registers standard handlers (debug, start, gen, settings, broadcast, stats, join requests) on client."""
     
-    # Handle chat join requests: Record in MongoDB and Auto-Approve (Accept)
+    # Handle pending join requests and save in MongoDB
     from telethon.tl import types
-    from telethon.tl.functions.messages import HideChatJoinRequestRequest
     @client.on(events.Raw(types.UpdateBotChatInviteRequester))
     async def _raw_join_req(event):
         try:
             uid = event.user_id
             raw_cid = event.peer.channel_id if hasattr(event.peer, 'channel_id') else event.peer.chat_id
             full_cid = int(f"-100{raw_cid}")
-            
-            # 1. Save / Update join request in MongoDB as approved
-            bot_users_col.database['joinrequests'].update_one(
+            mongo_db['joinrequests'].update_one(
                 {"userId": uid, "chatId": full_cid},
-                {"$set": {"status": "approved", "updatedAt": datetime.utcnow()}},
+                {"$set": {"userId": uid, "chatId": full_cid, "status": "pending", "createdAt": datetime.utcnow()}},
                 upsert=True
             )
-            
-            # 2. Auto-Accept / Approve user into the channel immediately
-            try:
-                try:
-                    user_entity = await client.get_input_entity(uid)
-                except Exception:
-                    user_entity = uid
-                await client(HideChatJoinRequestRequest(peer=event.peer, user_id=user_entity, approved=True))
-                log.info(f"✅ [AUTO-ACCEPT] Approved join request for user {uid} in chat {full_cid}")
-            except Exception as ae:
-                log.warning(f"Could not auto-approve join request for {uid} in {full_cid}: {ae}")
-                
+            log.info(f"[JoinRequest] Recorded pending request for user {uid} in chat {full_cid}")
         except Exception as e:
-            log.error(f"Error handling join request: {e}")
+            log.warning(f"Error recording join request: {e}")
+
+    # /pending command (ADMINS ONLY) - view total pending join requests
+    @client.on(events.NewMessage(pattern=r"^/pending$"))
+    async def _pending_stats(m: Message):
+        if m.sender_id not in ADMINS:
+            return
+        total_pending = mongo_db['joinrequests'].count_documents({"status": "pending"})
+        await m.reply(
+            f"📋 **Pending Join Requests:** `{total_pending}`\n\n"
+            "✅ Users are kept in pending status and allowed to use the bot without being auto-approved."
+        )
 
     # User activity & tracker
     @client.on(events.NewMessage(incoming=True, outgoing=False, func=lambda x: x.is_private))
