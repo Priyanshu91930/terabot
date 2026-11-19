@@ -137,6 +137,8 @@ def convert_seconds(seconds: int) -> str:
 
 
 _mongo_client = None
+_entity_cache = {}
+
 
 def _check_join_request_mongo(user_id, numeric_id):
     global _mongo_client
@@ -147,81 +149,143 @@ def _check_join_request_mongo(user_id, numeric_id):
             _mongo_client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=1500)
         db_mongo = _mongo_client['terabox_downloader']
         join_reqs = db_mongo['joinrequests']
-        req = join_reqs.find_one({"userId": user_id, "chatId": numeric_id, "status": "pending"})
+        
+        uids = [user_id, str(user_id)]
+        raw_num = str(numeric_id).replace("-100", "").replace("-", "")
+        cids = [
+            numeric_id, 
+            str(numeric_id), 
+            int(f"-100{raw_num}"), 
+            str(f"-100{raw_num}"),
+            int(raw_num),
+            str(raw_num)
+        ]
+        
+        req = join_reqs.find_one({
+            "userId": {"$in": uids},
+            "chatId": {"$in": cids},
+            "status": "pending"
+        })
         return bool(req)
     except Exception as e:
         print(f"Error checking MongoDB JoinRequest: {e}")
         return False
 
 
-async def is_user_on_chat(bot: TelegramClient, chat_id: str, user_id) -> bool:
+async def is_user_on_chat(bot: TelegramClient, chat_id, user_id, chat_link: str = None) -> bool:
     """
     Check if a user is present in a specific chat, either as a member or having a pending join request.
+    Handles raw numeric IDs, public @usernames, invite links, and caches access hashes safely.
     """
+    if not user_id:
+        return False
     if hasattr(user_id, 'user_id'):
         user_id = user_id.user_id
     elif hasattr(user_id, 'id'):
         user_id = user_id.id
-    else:
-        try:
-            user_id = int(user_id)
-        except Exception:
-            pass
+    try:
+        user_id = int(user_id)
+    except Exception:
+        pass
 
-    target_entity = chat_id
-    
-    # If chat_id is a private join/invite link, resolve the underlying chat/channel entity
-    if "t.me/" in str(chat_id) or "+" in str(chat_id):
-        try:
-            target_entity = await bot.get_entity(chat_id)
-        except Exception as e:
-            print(f"Error resolving invite link via get_entity: {e}")
+    cache_key = f"{id(bot)}_{chat_id}_{chat_link}"
+    target_entity = _entity_cache.get(cache_key)
+
+    link_str = str(chat_link or chat_id or "")
+
+    # 1. Resolve Target Entity if not already cached
+    if not target_entity:
+        # Priority A: Public username link (e.g. https://t.me/TeraboxDownloaderINDIA)
+        if "t.me/" in link_str and "+" not in link_str and "joinchat/" not in link_str:
+            uname = link_str.split("t.me/")[-1].strip("/").strip()
+            if uname:
+                try:
+                    target_entity = await bot.get_entity(f"@{uname}")
+                    _entity_cache[cache_key] = target_entity
+                except Exception as e:
+                    print(f"DEBUG: Could not resolve username @{uname}: {e}")
+
+        # Priority B: Direct chat_id lookup
+        if not target_entity and chat_id:
             try:
-                hash_val = str(chat_id).split("+")[-1] if "+" in str(chat_id) else str(chat_id).split("joinchat/")[-1]
-                hash_val = hash_val.strip("/")
-                
+                target_entity = await bot.get_entity(chat_id)
+                _entity_cache[cache_key] = target_entity
+            except Exception:
+                try:
+                    from telethon.tl.types import PeerChannel
+                    cid_str = str(chat_id).replace("-100", "").replace("-", "")
+                    target_entity = await bot.get_entity(PeerChannel(int(cid_str)))
+                    _entity_cache[cache_key] = target_entity
+                except Exception:
+                    pass
+
+        # Priority C: Private Invite Link (+hash or joinchat/hash)
+        if not target_entity and ("+" in link_str or "joinchat/" in link_str):
+            try:
                 from telethon.tl.functions.messages import CheckChatInviteRequest
                 from telethon.tl.types import ChatInviteAlready
-                
+                hash_val = link_str.split("+")[-1] if "+" in link_str else link_str.split("joinchat/")[-1]
+                hash_val = hash_val.strip("/")
                 invite_info = await bot(CheckChatInviteRequest(hash_val))
                 if isinstance(invite_info, ChatInviteAlready):
                     target_entity = invite_info.chat
-                else:
-                    target_entity = invite_info
+                    _entity_cache[cache_key] = target_entity
+                elif hasattr(invite_info, 'chat'):
+                    target_entity = invite_info.chat
+                    _entity_cache[cache_key] = target_entity
             except Exception as ex:
-                print(f"Error resolving invite link: {ex}")
+                print(f"DEBUG: Could not check chat invite {link_str}: {ex}")
 
-    # 1. Check direct channel membership via Telethon participant check
+    # Fallback to chat_id if target_entity still unresolved
+    if not target_entity:
+        target_entity = chat_id
+
+    # 2. Check Member using GetParticipantRequest & get_permissions
+    is_confirmed_not_member = False
     try:
-        from telethon.errors import UserNotParticipantError
-        await bot.get_permissions(target_entity, user_id)
-        return True
+        from telethon.tl.functions.channels import GetParticipantRequest
+        from telethon.errors import UserNotParticipantError, ChatAdminRequiredError, ChannelPrivateError
+        
+        res = await bot(GetParticipantRequest(target_entity, user_id))
+        if res and hasattr(res, 'participant'):
+            return True
     except UserNotParticipantError:
-        pass
+        # Telegram verified: User is explicitly NOT a member of this chat
+        is_confirmed_not_member = True
+    except (ChatAdminRequiredError, ChannelPrivateError) as admin_err:
+        bot_uname = getattr(bot, 'bot_username', 'bot')
+        print(f"⚠️ [FORCE SUB WARNING] Bot @{bot_uname} lacks Admin privileges in {target_entity} ({admin_err})! Please promote bot to ADMIN in this channel.")
+        # If bot cannot check because it lacks admin rights, do NOT falsely block legitimate users!
+        return True
     except Exception as e:
-        print(f"DEBUG: get_permissions failed for chat {target_entity} user {user_id}: {e}")
+        # Try fallback to get_permissions
+        try:
+            from telethon.errors import UserNotParticipantError, ChatAdminRequiredError
+            perms = await bot.get_permissions(target_entity, user_id)
+            if perms is not None:
+                return True
+        except UserNotParticipantError:
+            is_confirmed_not_member = True
+        except ChatAdminRequiredError:
+            return True
+        except Exception:
+            pass
+
+    # 3. Check pending join request in MongoDB (Join Request Mode)
+    numeric_id = None
+    try:
+        raw_id_str = str(chat_id).replace("-100", "").replace("-", "")
+        clean_int = int(raw_id_str)
+        numeric_id = int(f"-100{clean_int}")
+    except Exception:
         pass
 
-    # 2. Check pending join request in MongoDB (Join Request Mode)
-    try:
-        # Resolve target channel to obtain its numeric ID (e.g. -100xxxxxxxxxx)
-        entity = await bot.get_input_entity(target_entity)
-        if hasattr(entity, 'channel_id'):
-            numeric_id = int(f"-100{entity.channel_id}")
-        elif hasattr(entity, 'chat_id'):
-            numeric_id = int(f"-100{entity.chat_id}")
-        elif hasattr(entity, 'id'):
-            numeric_id = int(f"-100{entity.id}")
-        else:
-            return False
-            
+    if numeric_id:
         loop = asyncio.get_running_loop()
         req_found = await loop.run_in_executor(None, _check_join_request_mongo, user_id, numeric_id)
         if req_found:
             return True
-    except Exception as e:
-        print(f"Error checking MongoDB JoinRequest: {e}")
-        
+
     return False
 
 

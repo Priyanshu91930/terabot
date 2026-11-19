@@ -162,9 +162,10 @@ async def check_user_force_sub(client, user_id: int):
     
     for ch in FORCE_SUB_CHANNELS:
         ch_id = ch.get("id")
-        if not ch_id:
+        ch_link = ch.get("link")
+        if not ch_id and not ch_link:
             continue
-        joined = await is_user_on_chat(client, ch_id, user_id)
+        joined = await is_user_on_chat(client, ch_id, user_id, chat_link=ch_link)
         if not joined:
             channels_to_join.append(ch)
 
@@ -240,8 +241,24 @@ async def verify_user_access(client, event, service_name: str = "Media"):
 group_cooldowns = {}
 
 def register_common_handlers(client, service_name: str, welcome_banner: str):
-    """Registers standard handlers (debug, start, gen, settings, broadcast, stats) on client."""
+    """Registers standard handlers (debug, start, gen, settings, broadcast, stats, join requests) on client."""
     
+    # Handle pending join requests and save in MongoDB
+    from telethon.tl import types
+    @client.on(events.Raw(types.UpdateBotChatInviteRequester))
+    async def _raw_join_req(event):
+        try:
+            uid = event.user_id
+            raw_cid = event.peer.channel_id if hasattr(event.peer, 'channel_id') else event.peer.chat_id
+            full_cid = int(f"-100{raw_cid}")
+            bot_users_col.database['joinrequests'].update_one(
+                {"userId": uid, "chatId": full_cid},
+                {"$set": {"status": "pending", "createdAt": datetime.utcnow()}},
+                upsert=True
+            )
+        except Exception:
+            pass
+
     # User activity & tracker
     @client.on(events.NewMessage(incoming=True, outgoing=False, func=lambda x: x.is_private))
     async def _tracker(event):
