@@ -62,14 +62,40 @@ ADMINS = [1317173146]
 
 BOT_USERNAME = "teraboxdownloader_bot"
 
-# Force Sub Channels
+# ==================== FORCE SUBSCRIPTION CHANNELS ====================
+FORCE_SUB_CHANNELS = [
+    {
+        "id": -1004380780395,
+        "name": "Swadesi Bots 📢",
+        "link": "https://t.me/TeraboxDownloaderINDIA"
+    },
+    {
+        "id": -1003983694204,
+        "name": "Join Channel 1 📢",
+        "link": "https://t.me/..."
+    },
+    {
+        "id": -1004396922446,
+        "name": "Join Channel 2 📢",
+        "link": "https://t.me/..."
+    },
+    {
+        "id": -1004290277720,
+        "name": "Join Group 💬",
+        "link": "https://t.me/..."
+    },
+]
+
+# Legacy IDs
 FORCE_SUB_ID_1 = -1003983694204
 FORCE_SUB_ID_2 = -1004396922446
 FORCE_SUB_ID_3 = -1004290277720
+FORCE_SUB_ID_4 = -1004380780395
 
 FORCE_LINK_1 = "https://t.me/..."
 FORCE_LINK_2 = "https://t.me/..."
 FORCE_LINK_3 = "https://t.me/..."
+FORCE_LINK_4 = "https://t.me/TeraboxDownloaderINDIA"
 
 UPDATE_CHANNEL_URL = "https://t.me/..."
 

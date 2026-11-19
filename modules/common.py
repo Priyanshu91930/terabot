@@ -157,26 +157,32 @@ async def check_user_force_sub(client, user_id: int):
     if user_id in ADMINS or not is_force_sub_enabled():
         return True, []
     
-    check_1 = await is_user_on_chat(client, FORCE_SUB_ID_1, user_id)
-    check_2 = await is_user_on_chat(client, FORCE_SUB_ID_2, user_id)
-    check_3 = await is_user_on_chat(client, FORCE_SUB_ID_3, user_id)
+    from config import FORCE_SUB_CHANNELS
+    channels_to_join = []
     
-    if check_1 and check_2 and check_3:
+    for ch in FORCE_SUB_CHANNELS:
+        ch_id = ch.get("id")
+        if not ch_id:
+            continue
+        joined = await is_user_on_chat(client, ch_id, user_id)
+        if not joined:
+            channels_to_join.append(ch)
+
+    if not channels_to_join:
         return True, []
 
     bot_uname = getattr(client, "bot_username", BOT_USERNAME)
-    buttons = [
-        [
-            Button.url("Join Channel 1 📢", url=FORCE_LINK_1),
-            Button.url("Join Channel 2 📢", url=FORCE_LINK_2),
-        ],
-        [
-            Button.url("Join Group 💬", url=FORCE_LINK_3),
-        ],
-        [
-            Button.url("ReCheck ♻️", url=f"https://t.me/{bot_uname}?start=true"),
-        ],
-    ]
+    buttons = []
+    row = []
+    for ch in channels_to_join:
+        row.append(Button.url(ch.get("name", "Join Channel 📢"), url=ch.get("link", "")))
+        if len(row) == 2:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+
+    buttons.append([Button.url("ReCheck ♻️", url=f"https://t.me/{bot_uname}?start=true")])
     return False, buttons
 
 
