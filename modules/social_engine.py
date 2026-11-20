@@ -180,9 +180,10 @@ def _sync_api_download(platform: str, url: str, request_id: str) -> Dict[str, An
 
         if download_url:
             title = html.unescape(title)
+            referer = "https://www.youtube.com/" if platform == "youtube" else ("https://www.instagram.com/" if platform in ["instagram", "threads"] else "https://www.pinterest.com/")
             media_headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                "Referer": "https://www.instagram.com/" if platform in ["instagram", "threads"] else "https://www.pinterest.com/"
+                "Referer": referer
             }
             media_resp = requests.get(download_url, headers=media_headers, stream=True, timeout=40)
             c_type = media_resp.headers.get("content-type", "").lower()
